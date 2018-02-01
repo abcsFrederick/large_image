@@ -342,11 +342,13 @@ class MapnikTileSource(FileTileSource):
             ymin, ymax = self.sourceSizeY - ymax, self.sourceSizeY - ymin
         return xmin, ymin, xmax, ymax
 
-    def addStyle(self, m, layerSrs, extent):
+    def addStyle(self, m, layerSrs, extent=None):
         """
         Attaches raster style option to mapnik raster layer.
 
         :param m: mapnik map.
+        :param layerSrs: the layer projection
+        :param extent: the extent to use for the mapnik layer.
         """
         style = mapnik.Style()
         rule = mapnik.Rule()
@@ -360,19 +362,63 @@ class MapnikTileSource(FileTileSource):
                 palette = self.style.get('palette',
                                          'cmocean.diverging.Curl_10')
                 colors = self.getHexColors(palette)
-                values = self.interpolateMinMax(minimum,
-                                                maximum,
-                                                len(colors))
+                values = self.interpolateMinMax(minimum, maximum, len(colors))
                 colorizer = mapnik.RasterColorizer(
-                    mapnik.COLORIZER_DISCRETE,
-                    mapnik.Color('white')
-                )
+                    mapnik.COLORIZER_DISCRETE, mapnik.Color('white'))
                 for color, value in zip(colors, values):
                     colorizer.add_stop(value, mapnik.Color(color))
                 sym.colorizer = colorizer
             else:
                 raise TileSourceException('Band has to be an integer.')
-
+        else:
+            bands = self.getBandInformation()
+            # When we have exactly one band that is a palette, use the palette
+            # explciitly.  Passing -1 for the band won't honor alpha values
+            if (len(bands) == 1 and
+                    bands[1].get('interpretation') == 'palette' and
+                    bands[1].get('colortable')):
+                band = 1
+                colorizer = mapnik.RasterColorizer(
+                    mapnik.COLORIZER_DISCRETE, mapnik.Color(0, 0, 0, 0))
+                for value, color in enumerate(bands[1]['colortable']):
+                    colorizer.add_stop(value, mapnik.Color(*color))
+                sym.colorizer = colorizer
+            else:
+                for bandnum in bands:
+                    bandinfo = bands[bandnum]
+                    if bandinfo.get('interpretation') in ('red', 'green', 'blue'):
+                        style = mapnik.Style()
+                        rule = mapnik.Rule()
+                        sym = mapnik.RasterSymbolizer()
+                        colorizer = mapnik.RasterColorizer(
+                            mapnik.COLORIZER_LINEAR, mapnik.Color(0, 0, 0, 0))
+                        colorizer.add_stop(bandinfo['min'], mapnik.Color('black'))
+                        colorizer.add_stop(bandinfo['max'], mapnik.Color(
+                            255 if bandinfo['interpretation'] == 'red' else 0,
+                            255 if bandinfo['interpretation'] == 'green' else 0,
+                            255 if bandinfo['interpretation'] == 'blue' else 0,
+                            255))
+                        sym.colorizer = colorizer
+                        rule.symbols.append(sym)
+                        style.rules.append(rule)
+                        style.comp_op = mapnik.CompositeOp.lighten
+                        stylename = 'Raster Style ' + str(bandnum)
+                        m.append_style(stylename, style)
+                        lyr = mapnik.Layer('layer')
+                        lyr.srs = layerSrs
+                        if extent:
+                            lyr.datasource = mapnik.Gdal(
+                                base='', file=self._getLargeImagePath(),
+                                band=bandnum, extent=extent)
+                        else:
+                            lyr.datasource = mapnik.Gdal(
+                                base='', file=self._getLargeImagePath(),
+                                band=bandnum)
+                        lyr.styles.append(stylename)
+                        m.layers.append(lyr)
+                        rule = None
+        if not rule:
+            return
         rule.symbols.append(sym)
         style.rules.append(rule)
         m.append_style('Raster Style', style)
