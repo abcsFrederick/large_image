@@ -25,11 +25,9 @@ from ..cache_util import getTileCache, strhash, methodcache
 try:
     import girder
     from girder import logger
-    from girder.exceptions import ValidationException
-    from girder.models.assetstore import Assetstore
+    from girder.exceptions import ValidationException, FilePathException
     from girder.models.file import File
     from girder.models.item import Item
-    from girder.utility import assetstore_utilities
     from ..models.base import TileGeneralException
     from girder.models.model_base import AccessType
 except ImportError:
@@ -1730,6 +1728,9 @@ if girder:
 
     class GirderTileSource(FileTileSource):
         girderSource = True
+        # Set to true if the tile source can have multiple files where the
+        # reader expects the names to be based on each other.
+        mayHaveAdjacentFiles = False
 
         def __init__(self, item, *args, **kwargs):
             super(GirderTileSource, self).__init__(item, *args, **kwargs)
@@ -1752,26 +1753,18 @@ if girder:
         def _getLargeImagePath(self):
             try:
                 largeImageFileId = self.item['largeImage']['fileId']
-                # Access control checking should already have been done on
-                # item, so don't repeat.
-                # TODO: is it possible that the file is on a different item, so
-                # do we want to repeat the access check?
                 largeImageFile = File().load(largeImageFileId, force=True)
-
-                # TODO: can we move some of this logic into Girder core?
-                assetstore = Assetstore().load(largeImageFile['assetstoreId'])
-                adapter = assetstore_utilities.getAssetstoreAdapter(assetstore)
-
-                if not isinstance(
-                        adapter,
-                        assetstore_utilities.FilesystemAssetstoreAdapter):
-                    raise TileSourceAssetstoreException(
-                        'Non-filesystem assetstores are not supported')
-
-                largeImagePath = adapter.fullPath(largeImageFile)
+                largeImagePath = None
+                if self.mayHaveAdjacentFiles:
+                    try:
+                        from girder.plugins.fuse import getFuseFilePath
+                        largeImagePath = getFuseFilePath(largeImageFile)
+                    except ImportError:
+                        pass
+                if not largeImagePath:
+                    largeImagePath = File().getLocalFilePath(largeImageFile)
                 return largeImagePath
-
-            except TileSourceAssetstoreException:
+            except (TileSourceAssetstoreException, FilePathException):
                 raise
             except (KeyError, ValidationException, TileSourceException) as e:
                 raise TileSourceException(

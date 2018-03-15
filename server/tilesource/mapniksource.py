@@ -666,6 +666,9 @@ if girder:
         """
         name = 'mapnik'
         cacheName = 'tilesource'
+        # This allows vrt files and shapefiles to be handled.
+        # TODO: reenable this when FUSE works with GDAL via python-mapnik
+        # mayHaveAdjacentFiles = True
 
 
 TileInputUnits['projection'] = 'projection'

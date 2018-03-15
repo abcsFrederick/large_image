@@ -84,6 +84,8 @@ addons:
       - python-mapnik
       # girder worker - not needed; included in travis
       # - rabbitmq-server
+      # fuse plugin tests - not needed; included in travis
+      # - fuse
 
 services:
   - rabbitmq
@@ -212,7 +214,7 @@ before_install:
 
 install:
   - pushd $girder_path
-  - pip install --no-cache-dir -U -r requirements-dev.txt -e .
+  - pip install --no-cache-dir -U -r requirements-dev.txt -e .[fuse]
   - popd
   - girder-install plugin --symlink $large_image_path
   # Install all extras (since "girder-install plugin" does not provide a mechanism to specify them
