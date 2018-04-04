@@ -1,5 +1,7 @@
 import AnnotationModel from './AnnotationModel';
+import OverlayModel from './OverlayModel';
 
 export {
-    AnnotationModel
+    AnnotationModel,
+    OverlayModel
 };

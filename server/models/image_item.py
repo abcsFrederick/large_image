@@ -205,6 +205,21 @@ class ImageItem(Item):
         tileSource = self._loadTileSource(item, **kwargs)
         tileData = tileSource.getTile(x, y, z, mayRedirect=mayRedirect)
         tileMimeType = tileSource.getTileMimeType()
+        # TODO/FIXME: generate label large image
+        if 'label' in kwargs and kwargs['label']:
+            from six import BytesIO
+            import PIL.Image, PIL.ImageOps
+            image = PIL.Image.open(BytesIO(tileData))
+            mask = image.convert('L')
+            mask = PIL.ImageOps.invert(mask)
+            #colors = ['red', 'orange', 'yellow', 'green', 'blue', 'purple', 'cyan']
+            #image = PIL.Image.new('RGBA', mask.size, colors[z - 1])
+            image = PIL.Image.new('RGBA', mask.size, 'white')
+            image.putalpha(mask)
+            output = BytesIO()
+            image.save(output, format='PNG')
+            tileData = output.getvalue()
+            output.close()
         return tileData, tileMimeType
 
     def delete(self, item):

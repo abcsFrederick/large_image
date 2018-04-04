@@ -31,6 +31,7 @@ from girder.utility import setting_utilities
 
 from . import constants
 from .models.annotation import Annotation
+from .models.overlay import Overlay
 from .models.image_item import ImageItem
 from .loadmodelcache import invalidateLoadModelCache
 
@@ -257,15 +258,18 @@ SettingDefault.defaults.update({
     dependencies={'worker'},
 )
 def load(info):
-    from .rest import TilesItemResource, LargeImageResource, AnnotationResource
+    from .rest import TilesItemResource, LargeImageResource, \
+                      AnnotationResource, OverlayResource
 
     TilesItemResource(info['apiRoot'])
     info['apiRoot'].large_image = LargeImageResource()
     info['apiRoot'].annotation = AnnotationResource()
+    info['apiRoot'].overlay = OverlayResource()
 
     Item().exposeFields(level=AccessType.READ, fields='largeImage')
     # Ask for some models to make sure their singletons are initialized.
     Annotation()
+    Overlay()
 
     events.bind('data.process', 'large_image', _postUpload)
     events.bind('jobs.job.update.after', 'large_image', _updateJob)

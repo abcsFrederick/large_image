@@ -294,6 +294,8 @@ class TilesItemResource(ItemResource):
                'must match the image encoding but disregards quality, and '
                '"any" will redirect to any image if possible.', required=False,
                enum=['false', 'exact', 'encoding', 'any'], default='false')
+        .param('label', 'Return a label image.',
+               required=False, dataType='boolean', default=False)
         .produces(ImageMimeTypes)
         .errorResponse('ID was invalid.')
         .errorResponse('Read access was denied for the item.', 403)

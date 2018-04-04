@@ -30,7 +30,9 @@ var GeojsImageViewerWidget = ImageViewerWidget.extend({
         this._annotations = {};
         this._featureOpacity = {};
         this._globalAnnotationOpacity = settings.globalAnnotationOpacity || 1.0;
+        this._globalOverlaysOpacity = settings.globalOverlaysOpacity || 1.0;
         this._highlightFeatureSizeLimit = settings.highlightFeatureSizeLimit || 10000;
+        this._overlays = [];
         this.listenTo(events, 's:widgetDrawRegion', this.drawRegion);
         this.listenTo(events, 'g:startDrawMode', this.startDrawMode);
         this._hoverEvents = settings.hoverEvents;
@@ -114,6 +116,9 @@ var GeojsImageViewerWidget = ImageViewerWidget.extend({
             this.uiLayer = this.viewer.createLayer('ui');
             this.scaleWidget = this.uiLayer.createWidget('scale', this._scale);
         }
+
+        this.setGlobalOverlayOpacity(this._globalOverlaysOpacity);
+
         // the feature layer is for annotations that are loaded
         this.featureLayer = this.viewer.createLayer('feature', {
             features: ['point', 'line', 'polygon']
@@ -336,6 +341,90 @@ var GeojsImageViewerWidget = ImageViewerWidget.extend({
         }
     },
 
+    _setOverlayVisibility: function (index, visible) {
+        this._overlays[index].geojsLayer.visible(visible);
+    },
+
+    _addOverlay: function (overlay) {
+        var geo = window.geo;
+        var index = overlay.get('index');
+        var query = {};
+        if (overlay.get('label')) {
+            query['label'] = 1;
+        }
+        var params = geo.util.pixelCoordinateParams(this.el,
+                                                    this.sizeX, this.sizeY,
+                                                    this.tileWidth, this.tileHeight);
+        params.layer.useCredentials = true;
+        params.layer.keepLower = false;
+        params.layer.url = this._getTileUrl('{z}', '{x}', '{y}',
+                                            query, overlay.get('overlayItemId'));
+
+        params.layer.visible = overlay.get('displayed');
+        var geojsLayer = this.viewer.createLayer('osm', params.layer);
+        geojsLayer.opacity(this._globalOverlaysOpacity * overlay.get('opacity'));
+        //this._overlays.push({
+        this._overlays[index] = {
+            geojsLayer: geojsLayer,
+            overlay: overlay
+        };
+        //});
+
+        this._setOverlayVisibility(index, overlay.get('visible'));
+
+        return index;
+    },
+
+    addOverlay(overlay) {
+        var index = this._addOverlay(overlay);
+        this.redrawOverlay(index);
+        return index;
+    },
+
+    _removeOverlay: function(index) {
+        this.viewer.deleteLayer(this._overlays[index].geojsLayer);
+        delete this._overlays[index];
+    },
+
+    removeOverlay: function(index) {
+        this._removeOverlay(index);
+        this.viewer.draw();
+    },
+
+    updateOverlay: function(overlay) {
+        this._removeOverlay(overlay.get('index'));
+        var index = this._addOverlay(overlay);
+        this.redrawOverlay(index);
+        return index;
+    },
+
+    redrawOverlay: function(index) {
+        this._overlays[index].geojsLayer.draw();
+    },
+
+    setOverlayVisibility: function (index, visible) {
+        this._setOverlayVisibility(index, visible);
+        this.redrawOverlay(index);
+    },
+
+    moveOverlayDown: function (index) {
+        var _overlay = this._overlays[index];
+        var newIndex = _overlay.overlay.get('index');
+        this._overlays[index] = this._overlays[newIndex];
+        this._overlays[newIndex] = _overlay;
+        _overlay.geojsLayer.moveUp(1);
+        this.viewer.draw();
+    },
+
+    moveOverlayUp: function (index) {
+        var _overlay = this._overlays[index];
+        var newIndex = _overlay.overlay.get('index');
+        this._overlays[index] = this._overlays[newIndex];
+        this._overlays[newIndex] = _overlay;
+        _overlay.geojsLayer.moveDown(1);
+        this.viewer.draw();
+    },
+
     /**
      * Set the image interaction mode to region drawing mode.  This
      * method takes an optional `model` argument where the region will
@@ -424,6 +513,28 @@ var GeojsImageViewerWidget = ImageViewerWidget.extend({
         if (this.featureLayer) {
             this.featureLayer.opacity(opacity);
         }
+        return this;
+    },
+
+    setGlobalOverlayOpacity: function (opacity) {
+        this._globalOverlaysOpacity = opacity;
+        _.each(this._overlays, (_overlay) => {
+            if (_overlay) {
+                _overlay.geojsLayer.opacity(opacity*_overlay.overlay.get('opacity'));
+            }
+        });
+
+        if (this.viewer) {
+            this.viewer.draw();
+        }
+
+        return this;
+    },
+
+    setOverlayOpacity: function (index, opacity) {
+        var _overlay = this._overlays[index];
+        var opacity = _overlay.overlay.get('opacity');
+        _overlay.geojsLayer.opacity(this._globalOverlaysOpacity * opacity);
         return this;
     },
 

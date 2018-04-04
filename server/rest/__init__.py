@@ -20,6 +20,8 @@
 from .tiles import TilesItemResource
 from .large_image import LargeImageResource
 from .annotation import AnnotationResource
+from .overlay import OverlayResource
 
 
-__all__ = ('TilesItemResource', 'LargeImageResource', 'AnnotationResource')
+__all__ = ('TilesItemResource', 'LargeImageResource', 'AnnotationResource',
+	   'OverlayResource')

@@ -28,8 +28,11 @@ var ImageViewerWidget = View.extend({
      * @param {number|string} y: the tile y position or a template string.
      * @param {object} [query]: optional query parameters to add to the url.
      */
-    _getTileUrl: function (level, x, y, query) {
-        var url = apiRoot + '/item/' + this.itemId + '/tiles/zxy/' +
+    _getTileUrl: function (level, x, y, query, itemId) {
+	if (itemId == null) {
+	    itemId = this.itemId;
+        }
+        var url = apiRoot + '/item/' + itemId + '/tiles/zxy/' +
             level + '/' + x + '/' + y;
         if (query) {
             url += '?' + $.param(query);
@@ -56,6 +59,26 @@ var ImageViewerWidget = View.extend({
      */
     removeAnnotation: function (/* annotation */) {
         throw new Error('Viewer does not support drawing annotations');
+    },
+
+    addOverlay: function (/* overlays */) {
+        throw new Error('Viewer does not support adding overlays');
+    },
+
+    removeOverlay: function (/* overlays */) {
+        throw new Error('Viewer does not support removing overlays');
+    },
+
+    setOverlayVisibility: function (/* overlays */) {
+        throw new Error('Viewer does not support setting overlay visibilty');
+    },
+
+    moveOverlayDown: function (/* overlays */) {
+        throw new Error('Viewer does not support moving overlays');
+    },
+
+    moveOverlayUp: function (/* overlays */) {
+        throw new Error('Viewer does not support moving overlays');
     },
 
     /**

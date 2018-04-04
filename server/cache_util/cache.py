@@ -90,6 +90,8 @@ def methodcache(key=None):
     def decorator(func):
         @six.wraps(func)
         def wrapper(self, *args, **kwargs):
+            # DEBUG: remove cache
+            return func(self, *args, **kwargs)
             k = key(*args, **kwargs) if key else self.wrapKey(*args, **kwargs)
             if hasattr(self, '_classkey'):
                 k = self._classkey + ' ' + k
