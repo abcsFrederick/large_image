@@ -136,7 +136,7 @@ class OverlayResource(Resource):
             item = Item().load(update['itemId'], force=True)
             if item is not None:
                 Item().requireAccess(item, user=user, level=AccessType.READ)
-            	update['itemId'] = item['_id']
+                update['itemId'] = item['_id']
         if 'overlayItemId' in update:
             overlayItem = Item().load(update['overlayItemId'], force=True)
             Item().requireAccess(overlayItem, user=user, level=AccessType.READ)

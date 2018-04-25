@@ -47,7 +47,7 @@ class Overlay(AccessControlledModel):
             'overlayItemId',
         )
         self.exposeFields(AccessType.READ, fields)
-        
+
         events.bind('model.item.remove', 'large_image', self._onItemRemove)
 
     def _onItemRemove(self, event):
@@ -88,4 +88,4 @@ class Overlay(AccessControlledModel):
             raise ValidationException('Overlay must have an overlay item ID')
         if doc.get('name') is None:
             raise ValidationException('Overlay must have a name')
-        return doc 
+        return doc
