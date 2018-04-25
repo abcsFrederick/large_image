@@ -67,7 +67,9 @@ class Overlay(AccessControlledModel):
             return overlay['index']
         return -1
 
-    def createOverlay(self, **doc):
+    def createOverlay(self, user, **doc):
+        self.setUserAccess(doc, user=user, level=AccessType.ADMIN,
+                           save=False)
         doc['index'] = self._getMaxIndex(doc['itemId'], doc['creatorId']) + 1
         return self.save(doc)
 

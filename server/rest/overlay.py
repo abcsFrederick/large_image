@@ -78,7 +78,7 @@ class OverlayResource(Resource):
             Item().requireAccess(overlayItem, user=user, level=AccessType.READ)
             overlay['overlayItemId'] = overlayItem['_id']
 
-        return Overlay().createOverlay(**overlay)
+        return Overlay().createOverlay(user, **overlay)
 
     @describeRoute(
         Description('Delete an overlay.')
