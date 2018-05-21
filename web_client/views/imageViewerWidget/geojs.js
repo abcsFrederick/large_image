@@ -95,7 +95,8 @@ var GeojsImageViewerWidget = ImageViewerWidget.extend({
                 keepLower: false,
                 attribution: null,
                 url: this._getTileUrl('{z}', '{x}', '{y}', {'encoding': 'PNG', 'projection': 'EPSG:3857'}),
-                useCredentials: true
+                useCredentials: true,
+                maxLevel: this.levels - 1
             };
             // the metadata levels is the count including level 0, so use one
             // less than the value specified
@@ -147,6 +148,8 @@ var GeojsImageViewerWidget = ImageViewerWidget.extend({
         this.deleted = true;
         ImageViewerWidget.prototype.destroy.call(this);
     },
+
+    annotationAPI: _.constant(true),
 
     /**
      * Render an annotation model on the image.  Currently,

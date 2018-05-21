@@ -393,7 +393,8 @@ class Annotation(AccessControlledModel):
         'updated',
         'updatedId',
         'public',
-        'publicFlags'
+        'publicFlags',
+        'groups'
         # 'skill',
         # 'startTime'
         # 'stopTime'
@@ -578,6 +579,7 @@ class Annotation(AccessControlledModel):
                     break
                 annotation = recheck
 
+        self.injectAnnotationGroupSet(annotation)
         return annotation
 
     def remove(self, annotation, *args, **kwargs):
@@ -663,17 +665,17 @@ class Annotation(AccessControlledModel):
             return ret
 
         def insertElements(doc, *args, **kwargs):
-            elements = doc['annotation'].pop('elements', None)
-            # When creating an annotation, there is a window of time where the
-            # elements aren't set (this is unavoidable without database
-            # transactions, as we need the annotation's id to set the
-            # elements).
-            ret = insert_one(doc, *args, **kwargs)
-            if elements is not None:
-                doc['annotation']['elements'] = elements
+            # When creating an annotation, store the elements first, then store
+            # the annotation without elements, then restore the elements.
+            doc.setdefault('_id', ObjectId())
+            if doc['annotation'].get('elements') is not None:
                 Annotationelement().updateElements(doc)
             # If we are inserting, we shouldn't have any old elements, so don't
             # bother removing them.
+            elements = doc['annotation'].pop('elements', None)
+            ret = insert_one(doc, *args, **kwargs)
+            if elements is not None:
+                doc['annotation']['elements'] = elements
             return ret
 
         with self._writeLock:
@@ -686,6 +688,10 @@ class Annotation(AccessControlledModel):
                 self.collection.insert_one = insert_one
         if _elementQuery:
             result['_elementQuery'] = _elementQuery
+
+        annotation.pop('groups', None)
+        self.injectAnnotationGroupSet(annotation)
+
         logger.debug('Saved annotation in %5.3fs' % (time.time() - starttime))
         events.trigger('large_image.annotations.save_history', {
             'annotation': annotation
@@ -930,3 +936,17 @@ class Annotation(AccessControlledModel):
             if token.startswith(matchString):
                 return True
         return False
+
+    def injectAnnotationGroupSet(self, annotation):
+        if 'groups' not in annotation:
+            annotation['groups'] = Annotationelement().getElementGroupSet(annotation)
+            query = {
+                '_id': ObjectId(annotation['_id'])
+            }
+            update = {
+                '$set': {
+                    'groups': annotation['groups']
+                }
+            }
+            self.collection.update_one(query, update)
+        return annotation
