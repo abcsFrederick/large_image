@@ -200,9 +200,10 @@ class TiledTiffDirectory(object):
             raise ValidationTiffException(
                 'Only RGB and greyscale TIFF files are supported')
 
-        if self._tiffInfo.get('bitspersample') != 8:
-            raise ValidationTiffException(
-                'Only single-byte sampled TIFF files are supported')
+# TODO: temporary
+#        if self._tiffInfo.get('bitspersample') != 8:
+#            raise ValidationTiffException(
+#                'Only single-byte sampled TIFF files are supported')
 
         if self._tiffInfo.get('sampleformat') not in (
                 None,  # default is still SAMPLEFORMAT_UINT
@@ -226,10 +227,11 @@ class TiledTiffDirectory(object):
             raise ValidationTiffException(
                 'Only top-left orientation TIFF files are supported')
 
-        if self._tiffInfo.get('compression') not in (
-                libtiff_ctypes.COMPRESSION_JPEG, 33003, 33005):
-            raise ValidationTiffException(
-                'Only JPEG compression TIFF files are supported')
+# TODO: temporary
+#        if self._tiffInfo.get('compression') not in (
+#                libtiff_ctypes.COMPRESSION_JPEG, 33003, 33005):
+#            raise ValidationTiffException(
+#                'Only JPEG compression TIFF files are supported')
         if (not self._tiffInfo.get('istiled') or
                 not self._tiffInfo.get('tilewidth') or
                 not self._tiffInfo.get('tilelength')):
@@ -555,6 +557,16 @@ class TiledTiffDirectory(object):
             # image multiple times, which sometimes throws an exception in
             # PIL's JPEG 2000 module.
             image = image.convert('RGB')
+            return image
+
+        if self._tiffInfo.get('compression') in \
+               (libtiff_ctypes.COMPRESSION_NONE,
+                libtiff_ctypes.COMPRESSION_ADOBE_DEFLATE,
+                libtiff_ctypes.COMPRESSION_LZW):
+            tile_plane = self._tiffFile.read_one_tile(x*self._tileHeight,
+                                                      y*self._tileWidth)
+            image = PIL.Image.fromarray(tile_plane)
+            #image = image.convert('RGB')
             return image
 
     def parse_image_description(self, meta=None):

@@ -37,6 +37,19 @@ from .base import TileGeneralException
 from .. import constants
 from ..tilesource import AvailableTileSources, TileSourceException
 
+try:
+    import PIL.Image
+except ImportError:
+    logger.warning('Error: Could not import PIL')
+    PIL = None
+try:
+    import numpy
+except ImportError:
+    logger.warning('Error: Could not import numpy')
+    numpy = None
+
+class HistogramException(Exception):
+    pass
 
 class ImageItem(Item):
     # We try these sources in this order.  The first entry is the fallback for
@@ -51,7 +64,8 @@ class ImageItem(Item):
         ], {})])
 
     def createImageItem(self, item, fileObj, user=None, token=None,
-                        createJob=True, notify=False):
+                        createJob=True, notify=False,
+                        quality=90, compression='jpeg'):
         # Using setdefault ensures that 'largeImage' is in the item
         if 'fileId' in item.setdefault('largeImage', {}):
             # TODO: automatically delete the existing large file
@@ -81,7 +95,10 @@ class ImageItem(Item):
         if 'sourceName' not in item['largeImage']:
             # No source was successful
             del item['largeImage']['fileId']
-            job = self._createLargeImageJob(item, fileObj, user, token)
+            options = {}
+            options['quality'] = quality
+            options['compression'] = compression
+            job = self._createLargeImageJob(item, fileObj, user, token, options)
             item['largeImage']['expected'] = True
             item['largeImage']['notify'] = notify
             item['largeImage']['originalId'] = fileObj['_id']
@@ -90,7 +107,7 @@ class ImageItem(Item):
         self.save(item)
         return job
 
-    def _createLargeImageJob(self, item, fileObj, user, token):
+    def _createLargeImageJob(self, item, fileObj, user, token, options):
         path = os.path.join(os.path.dirname(__file__), '..', 'create_tiff.py')
         with open(path, 'r') as f:
             script = f.read()
@@ -105,6 +122,9 @@ class ImageItem(Item):
         if outputName == fileObj['name']:
             outputName = (os.path.splitext(fileObj['name'])[0] + '.' +
                           time.strftime('%Y%m%d-%H%M%S') + '.tiff')
+
+        quality = options.get('quality', 90)
+        compression = options.get('compression', 'jpeg')
 
         task = {
             'mode': 'python',
@@ -127,6 +147,10 @@ class ImageItem(Item):
                 'id': 'quality',
                 'type': 'number',
                 'format': 'number'
+            }, {
+                'id': 'compression',
+                'type': 'string',
+                'format': 'text'
             }],
             'outputs': [{
                 'id': 'out_path',
@@ -139,11 +163,17 @@ class ImageItem(Item):
         inputs = {
             'in_path': workerUtils.girderInputSpec(
                 fileObj, resourceType='file', token=token),
+            'compression': {
+                'mode': 'inline',
+                'type': 'string',
+                'format': 'text',
+                'data': compression
+            },
             'quality': {
                 'mode': 'inline',
                 'type': 'number',
                 'format': 'number',
-                'data': 90
+                'data': quality
             },
             'tile_size': {
                 'mode': 'inline',
@@ -203,37 +233,23 @@ class ImageItem(Item):
 
     def getTile(self, item, x, y, z, mayRedirect=False, **kwargs):
         tileSource = self._loadTileSource(item, **kwargs)
-        tileData = tileSource.getTile(x, y, z, mayRedirect=mayRedirect)
+        tileData = tileSource.getTile(x, y, z, mayRedirect=mayRedirect, **kwargs)
         tileMimeType = tileSource.getTileMimeType()
-        # TODO/FIXME: generate label large image
-        if 'label' in kwargs and kwargs['label']:
-            from six import BytesIO
-            import PIL.Image, PIL.ImageOps
-            image = PIL.Image.open(BytesIO(tileData))
-            mask = image.convert('L')
-            mask = PIL.ImageOps.invert(mask)
-            #colors = ['red', 'orange', 'yellow', 'green', 'blue', 'purple', 'cyan']
-            #image = PIL.Image.new('RGBA', mask.size, colors[z - 1])
-            image = PIL.Image.new('RGBA', mask.size, 'white')
-            image.putalpha(mask)
-            output = BytesIO()
-            image.save(output, format='PNG')
-            tileData = output.getvalue()
-            output.close()
         return tileData, tileMimeType
 
     def delete(self, item):
-        deleted = False
-        if 'largeImage' in item:
+        fields = ('largeImage', 'histogram')
+        hasFields = [field for field in fields if field in item]
+        for field in hasFields:
             job = None
-            if 'jobId' in item['largeImage']:
+            if 'jobId' in item[field]:
                 try:
-                    job = Job().load(item['largeImage']['jobId'], force=True, exc=True)
+                    job = Job().load(item[field]['jobId'], force=True, exc=True)
                 except ValidationException:
                     # The job has been deleted, but we still need to clean up
                     # the rest of the tile information
                     pass
-            if (item['largeImage'].get('expected') and job and
+            if (item[field].get('expected') and job and
                     job.get('status') in (
                     JobStatus.QUEUED, JobStatus.RUNNING)):
                 # cannot cleanly remove the large image, since a conversion
@@ -243,30 +259,30 @@ class ImageItem(Item):
                 return False
 
             # If this file was created by the worker job, delete it
-            if 'jobId' in item['largeImage']:
+            if 'jobId' in item[field]:
                 if job:
                     # TODO: does this eliminate all traces of the job?
                     # TODO: do we want to remove the original job?
                     Job().remove(job)
-                del item['largeImage']['jobId']
+                del item[field]['jobId']
 
-            if 'originalId' in item['largeImage']:
+            if 'originalId' in item[field]:
                 # The large image file should not be the original file
-                assert item['largeImage']['originalId'] != \
-                    item['largeImage'].get('fileId')
+                assert item[field]['originalId'] != \
+                    item[field].get('fileId')
 
-                if 'fileId' in item['largeImage']:
-                    file = File().load(id=item['largeImage']['fileId'], force=True)
+                if 'fileId' in item[field]:
+                    file = File().load(id=item[field]['fileId'], force=True)
                     if file:
                         File().remove(file)
-                del item['largeImage']['originalId']
+                del item[field]['originalId']
 
-            del item['largeImage']
+            del item[field]
 
+        if hasFields:
             item = self.save(item)
-            deleted = True
         self.removeThumbnailFiles(item)
-        return deleted
+        return bool(hasFields)
 
     def getThumbnail(self, item, width=None, height=None, **kwargs):
         """
@@ -420,3 +436,206 @@ class ImageItem(Item):
         """
         tileSource = self._loadTileSource(item, **kwargs)
         return tileSource.getAssociatedImage(imageKey, *args, **kwargs)
+
+    def _getHistogram(self, item, **kwargs):
+        # TODO: this needs to be a job
+        if numpy is None:
+            raise NotImplementedError('numpy required for image histogram')
+        if 'largeImage' not in item:
+            raise TileSourceException('No large image file in this item.')
+        if item['largeImage'].get('expected'):
+            raise TileSourceException('The large image file for this item is '
+                                      'still pending creation.')
+        if item['largeImage'].get('originalId'):
+            # TODO: permissions
+            fileObj = File().load(id=item['largeImage']['originalId'], force=True)
+            if PIL is None:
+                raise NotImplementedError('PIL required for image histogram')
+            image = PIL.Image.open(File().open(fileObj))
+            array = numpy.array(image)
+        else:
+            # TODO: histogram from tile image
+            raise TileSourceException('No original image to generate histogram')
+            #sourceName = item['largeImage']['sourceName']
+            #tileSource = AvailableTileSources[sourceName](item, **kwargs)
+            #array, _ = tileSource.getRegion(format=TILE_FORMAT_NUMPY, **kwargs)
+
+        histogram_kwargs = {}
+
+        if 'n' in kwargs:
+            histogram_kwargs['bins'] = kwargs['n']
+
+        if array.ndim == 2:
+            if 'label' in kwargs and kwargs['label']:
+                array = array[numpy.nonzero(array)]
+            hist, binEdges = numpy.histogram(array, **histogram_kwargs)
+            nonzero = numpy.nonzero(hist)
+            hist = hist[nonzero]
+            binEdges = binEdges[nonzero]
+            result = {'values': list(hist), 'bins': list(binEdges)}
+        elif array.ndim == 3:
+            # TODO: implement RGB(A)
+            result = {}
+            for i, channel in enumerate(('red', 'green', 'blue')):
+                hist, binEdges = numpy.histogram(array[:, :, i],
+                                                  **histogram_kwargs)
+                result[channel] = {
+                    'values': list(hist),
+                    'bins': list(binEdges),
+                }
+        else:
+            raise ValueError('invalid dimensions for image')
+
+        return result
+
+    def _createHistogramJob(self, item, fileObj, user, token, options):
+        title = 'Histogram computation: %s' % fileObj['name']
+        job = Job().createJob(title=title, type='large_image_histogram',
+                              handler='worker_handler', user=user)
+        jobToken = Job().createJobToken(job)
+
+# '''
+# # TODO: implement RGB(A)
+# result = {}
+# for i, channel in enumerate(('red', 'green', 'blue')):
+#     hist, binEdges = numpy.histogram(array[:, :, i],
+#                                       **histogram_kwargs)
+#     result[channel] = {
+#         'values': list(hist),
+#         'bins': list(binEdges),
+#     }
+# '''
+
+        task = {
+            'mode': 'python',
+            'script': '''
+import json
+import PIL.Image
+PIL.Image.MAX_IMAGE_PIXELS = 10000000000
+import numpy
+image = PIL.Image.open(in_path)
+if image.mode not in ('1', 'L', 'P', 'I', 'F'):
+    raise ValueError('invalid image type for histogram: %s' % image.mode)
+array = numpy.array(image)
+if label:
+    array = array[numpy.nonzero(array)]
+hist, binEdges = numpy.histogram(array, bins=bins)
+nonzero = numpy.nonzero(hist)
+histogram = json.dumps({
+    'label': label,
+    'bins': bins,
+    'hist': list(hist[nonzero]),
+    'binEdges': list(binEdges[nonzero]),
+})
+''',
+            'name': title,
+            'inputs': [{
+                'id': 'in_path',
+                'target': 'filepath',
+                'type': 'string',
+                'format': 'text'
+            }, {
+                'id': 'bins',
+                'type': 'number',
+                'format': 'number',
+            }, {
+                'id': 'label',
+                'type': 'boolean',
+                'format': 'boolean',
+            }],
+            'outputs': [{
+                'id': 'histogram',
+                'target': 'memory',
+                'type': 'string',
+                'format': 'text',
+            }],
+        }
+
+        inputs = {
+            'in_path': workerUtils.girderInputSpec(
+                fileObj, resourceType='file', token=token),
+            'bins': {
+                'mode': 'inline',
+                'type': 'number',
+                'format': 'number',
+                'data': options.get('n', 256),
+            },
+            'label': {
+                'mode': 'inline',
+                'type': 'boolean',
+                'format': 'boolean',
+                'data': options.get('label', False),
+            },
+        }
+
+        outputs = {
+            'histogram': workerUtils.girderOutputSpec(item, token,
+                                                      parentType='item',
+                                                      name='histogram.json'),
+        }
+
+        job['kwargs'] = {
+            'task': task,
+            'inputs': inputs,
+            'outputs': outputs,
+            'jobInfo': workerUtils.jobInfoSpec(job, jobToken),
+            'auto_convert': True,
+            'validate': True,
+        }
+
+        job['meta'] = {
+            'creator': 'large_image',
+            'itemId': str(item['_id']),
+            'task': 'createHistogramItem',
+        }
+
+        job = Job().save(job)
+        Job().scheduleJob(job)
+
+        return job
+
+    def createHistogramItem(self, item, fileObj, user=None, token=None,
+                           notify=False, bins=256, label=False):
+        #if 'fileId' in item.setdefault('histogram', {}):
+        #    # TODO: automatically delete the existing large file
+        #    raise TileGeneralException('Item already has a histogram set.')
+        if fileObj['itemId'] != item['_id']:
+            raise HistogramException('The provided file must be in the '
+                                     'provided item.')
+        item['histogram'].pop('expected', None)
+        if (item['histogram'].get('expected') is True and
+                'jobId' in item['histogram']):
+            raise HistogramException('Item is scheduled to generate a '
+                                     'histogram.')
+
+        item['histogram'].pop('expected', None)
+
+        item['histogram']['fileId'] = fileObj['_id']
+        job = None
+
+        # TODO: check if exists
+
+        options = {
+            'bins': bins,
+            'label': label,
+        }
+        job = self._createHistogramJob(item, fileObj, user, token, options)
+        item['histogram']['expected'] = True
+        item['histogram']['notify'] = notify
+        item['histogram']['originalId'] = fileObj['_id']
+        item['histogram']['jobId'] = job['_id']
+        item['histogram']['bins'] = options['bins']
+        item['histogram']['label'] = options['label']
+
+        self.save(item)
+        return job
+
+    def getHistogram(self, item, bins=256, label=False):
+        try:
+            histogramFileId = item['histogram']['fileId']
+            largeImageFile = File().load(histogramFileId, force=True)
+        except (KeyError, ValidationException) as e:
+            raise HistogramException(
+                'No histogram file in this item: %s' % item['_id'])
+        return json.load(File().open(largeImageFile))
+

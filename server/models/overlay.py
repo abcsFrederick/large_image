@@ -42,8 +42,11 @@ class Overlay(AccessControlledModel):
             'position',
             'itemId',
             'label',
+            'invertLabel',
+            'flattenLabel',
             'name',
             'opacity',
+            'threshold',
             'overlayItemId',
         )
         self.exposeFields(AccessType.READ, fields)

@@ -4,6 +4,16 @@ import AccessControlledModel from 'girder/models/AccessControlledModel';
 
 var OverlayModel = AccessControlledModel.extend({
     resourceName: 'overlay',
+    defaults: {
+        displayed: true,
+        name: 'unnamed overlay',
+        description: '',
+        opacity: 1.0,
+        label: false,
+        invertLabel: true,
+        flattenLabel: false,
+        overlayItemId: null
+    },
 
     save: function () {
         if (this.altUrl === null && this.resourceName === null) {
@@ -18,15 +28,15 @@ var OverlayModel = AccessControlledModel.extend({
             path = (this.altUrl || this.resourceName) + `?itemId=${this.get('itemId')}`;
             type = 'POST';
         }
-        /* Don't save attributes which are objects using this call.  For
-         * instance, if the metadata of an item has keys that contain non-ascii
-         * values, they won't get handled by the rest call. */
         var data = {};
         _.each(this.keys(), function (key) {
             var value = this.get(key);
+            /*
             if (!_.isObject(value)) {
                 data[key] = value;
             }
+             */
+            data[key] = value;
         }, this);
 
         return restRequest({
@@ -41,7 +51,7 @@ var OverlayModel = AccessControlledModel.extend({
         }).fail((err) => {
             this.trigger('g:error', err);
         });
-    },
+    }
 });
 
-export default OverlayModel
+export default OverlayModel;

@@ -32,7 +32,7 @@ from girder.models.file import File
 from girder.models.item import Item
 
 from ..models import TileGeneralException
-from ..models.image_item import ImageItem
+from ..models.image_item import ImageItem, HistogramException
 from ..tilesource.base import TileInputUnits
 
 from .. import loadmodelcache
@@ -78,6 +78,8 @@ class TilesItemResource(ItemResource):
 
         self.resourceName = 'item'
         apiRoot.item.route('POST', (':itemId', 'tiles'), self.createTiles)
+        apiRoot.item.route('POST', (':itemId', 'tiles', 'histogram'),
+                           self.createTilesHistogram)
         apiRoot.item.route('GET', (':itemId', 'tiles'), self.getTilesInfo)
         apiRoot.item.route('DELETE', (':itemId', 'tiles'), self.deleteTiles)
         apiRoot.item.route('GET', (':itemId', 'tiles', 'thumbnail'),
@@ -86,6 +88,8 @@ class TilesItemResource(ItemResource):
                            self.getTilesRegion)
         apiRoot.item.route('GET', (':itemId', 'tiles', 'pixel'),
                            self.getTilesPixel)
+        apiRoot.item.route('GET', (':itemId', 'tiles', 'histogram'),
+                           self.getTilesHistogram)
         apiRoot.item.route('GET', (':itemId', 'tiles', 'zxy', ':z', ':x', ':y'),
                            self.getTile)
         apiRoot.item.route('GET', (':itemId', 'tiles', 'images'),
@@ -110,6 +114,11 @@ class TilesItemResource(ItemResource):
         .param('notify', 'If a job is required to create the large image, '
                'a nofication can be sent when it is complete.',
                dataType='boolean', default=True, required=False)
+        .param('quality', 'The quality of JPEG compression.',
+               dataType='int', default=90, required=False)
+        .param('compression', 'The image compression type.',
+               required=False, default='JPEG',
+               enum=['none', 'JPEG', 'Deflate', 'PackBits', 'LZW'])
     )
     @access.user
     @loadmodel(model='item', map={'itemId': 'item'}, level=AccessType.WRITE)
@@ -128,7 +137,9 @@ class TilesItemResource(ItemResource):
         try:
             return self.imageItemModel.createImageItem(
                 item, largeImageFile, user, token,
-                notify=self.boolParam('notify', params, default=True))
+                notify=self.boolParam('notify', params, default=True),
+                quality=params.get('quality', 90),
+                compression=params.get('compression', 'jpeg').lower())
         except TileGeneralException as e:
             raise RestException(e.args[0])
 
@@ -294,7 +305,17 @@ class TilesItemResource(ItemResource):
                'must match the image encoding but disregards quality, and '
                '"any" will redirect to any image if possible.', required=False,
                enum=['false', 'exact', 'encoding', 'any'], default='false')
-        .param('label', 'Return a label image.',
+        .param('normalize', 'Normalize image intensity (single band only).',
+               required=False, dataType='boolean', default=False)
+        .param('normalizeMin', 'Minimum threshold intensity.',
+               required=False, dataType='float')
+        .param('normalizeMin', 'Maximum threshold intensity.',
+               required=False, dataType='float')
+        .param('label', 'Return a label image (single band only).',
+               required=False, dataType='boolean', default=False)
+        .param('invertLabel', 'Invert label values for transparency.',
+               required=False, dataType='boolean', default=True)
+        .param('flattenLabel', 'Ignore values for transparency.',
                required=False, dataType='boolean', default=False)
         .produces(ImageMimeTypes)
         .errorResponse('ID was invalid.')
@@ -320,6 +341,14 @@ class TilesItemResource(ItemResource):
         redirect = params.get('redirect', False)
         if redirect not in ('any', 'exact', 'encoding'):
             redirect = False
+        params = self._parseParams(params, True, [
+            ('normalize', bool),
+            ('normalizeMin', float),
+            ('normalizeMax', float),
+            ('label', bool),
+            ('invertLabel', bool),
+            ('flattenLabel', bool),
+        ])
         return self._getTile(item, z, x, y, params, mayRedirect=redirect)
 
     @describeRoute(
@@ -617,3 +646,95 @@ class TilesItemResource(ItemResource):
         setResponseHeader('Content-Type', imageMime)
         setRawResponse()
         return imageData
+
+    @describeRoute(
+        Description('Get a histogram of image pixel values.')
+        .param('itemId', 'The ID of the item.', paramType='path')
+        .param('n', 'The number of bins in the histogram',
+               required=False, dataType='int')
+        .param('label', 'Image is a label (ignore zero values)',
+               required=False, dataType='boolean')
+        .errorResponse('ID was invalid.')
+        .errorResponse('Read access was denied for the item.', 403)
+    )
+    @access.cookie
+    @access.public
+    @loadmodel(model='item', map={'itemId': 'item'}, level=AccessType.READ)
+    def _getTilesHistogram(self, item, params):
+        params = self._parseParams(params, True, [
+            ('n', int),
+            ('label', bool),
+        ])
+        try:
+            histogram = self.imageItemModel.getHistogram(item, **params)
+        except TileGeneralException as e:
+            raise RestException(e.args[0])
+        except ValueError as e:
+            raise RestException('Value Error: %s' % e.args[0])
+        return histogram
+
+    @describeRoute(
+        Description('Create a histogram for this item.')
+        .param('itemId', 'The ID of the item.', paramType='path')
+        .param('fileId', 'The ID of the source file containing the image. '
+                         'Required if there is more than one file in the item.',
+               required=False)
+        .param('notify', 'If a job is required to create the histogram, '
+               'a nofication can be sent when it is complete.',
+               dataType='boolean', default=True, required=False)
+        .param('bins', 'The number of bins in the histogram',
+               required=False, dataType='int')
+        .param('label', 'Image is a label (ignore zero values)',
+               required=False, dataType='boolean')
+    )
+    @access.user
+    @loadmodel(model='item', map={'itemId': 'item'}, level=AccessType.WRITE)
+    @filtermodel(model='job', plugin='jobs')
+    def createTilesHistogram(self, item, params):
+        fileId = params.get('fileId')
+        if fileId is None:
+            files = list(Item().childFiles(item=item, limit=2))
+            if len(files) == 1:
+                fileId = str(files[0]['_id'])
+        if not fileId:
+            raise RestException('Missing "fileId" parameter.')
+        fileObj = File().load(fileId, force=True, exc=True)
+        user = self.getCurrentUser()
+        token = self.getCurrentToken()
+        try:
+            return self.imageItemModel.createHistogramItem(
+                item, fileObj, user, token,
+                notify=self.boolParam('notify', params, default=True),
+                bins=params.get('bins', 256),
+                label=self.boolParam('label', params, default=False))
+        except TileGeneralException as e:
+            raise RestException(e.args[0])
+
+    @describeRoute(
+        Description('Get a histogram of image pixel values.')
+        .param('itemId', 'The ID of the item.', paramType='path')
+        .param('fileId', 'The ID of the source file containing the image. '
+                         'Required if there is more than one file in the item.',
+               required=False)
+        .param('bins', 'The number of bins in the histogram',
+               required=False, dataType='int')
+        .param('label', 'Image is a label (ignore zero values)',
+               required=False, dataType='boolean')
+        .errorResponse('ID was invalid.')
+        .errorResponse('Read access was denied for the item.', 403)
+    )
+    @access.cookie
+    @access.public
+    @loadmodel(model='item', map={'itemId': 'item'}, level=AccessType.READ)
+    def getTilesHistogram(self, item, params):
+        params = self._parseParams(params, True, [
+            ('bins', int),
+            ('label', bool),
+        ])
+        params.pop('fileId')
+        try:
+            histogram = self.imageItemModel.getHistogram(item, **params)
+        except HistogramException as e:
+            raise RestException(e.args[0], code=404)
+        return histogram
+

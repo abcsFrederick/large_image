@@ -40,9 +40,14 @@ except ImportError:
 from .base import TILE_FORMAT_PIL
 
 try:
-    import PIL.Image
+    import PIL.Image, PIL.ImageOps, PIL.ImageMath
 except ImportError:
     PIL = None
+try:
+    import numpy
+except ImportError:
+    logger.warning('Error: Could not import numpy')
+    numpy = None
 
 
 @six.add_metaclass(LruCacheMetaclass)
@@ -170,6 +175,67 @@ class TiffFileTileSource(FileTileSource):
             'mm_x': mm_x,
             'mm_y': mm_y,
         }
+
+    def _normalizeImage(self, tile, tileEncoding, range_):
+        if tileEncoding != TILE_FORMAT_PIL:
+            tile = PIL.Image.open(BytesIO(tile))
+            tileEncoding = TILE_FORMAT_PIL
+        if len(tile.getbands()) > 1:
+            raise NotImplementedError('single band label images only')
+        array = numpy.asarray(tile, dtype=numpy.float32)
+        min_, max_ = range_
+        if min_ == max_:
+            array[numpy.where(array != min_)] = 0
+            array[numpy.nonzero(array)] = 255
+        else:
+            array -= min_
+            array *= 255/(max_ - min_)
+        tile = PIL.Image.fromarray(array.round())
+        tile = tile.convert('L')
+        return tile, tileEncoding
+
+    def _labelImage(self, tile, tileEncoding, invert=True, flatten=False):
+        if tileEncoding != TILE_FORMAT_PIL:
+            tile = PIL.Image.open(BytesIO(tile))
+            tileEncoding = TILE_FORMAT_PIL
+        if len(tile.getbands()) > 1:
+            raise NotImplementedError('single band label images only')
+        if flatten:
+            if tile.mode == 'I':
+                n = 65536
+            elif tile.mode == 'L':
+                n = 256
+            else:
+                raise NotImplementedError('8-bit and 32-bit grayscale images only')
+            lut = numpy.zeros(n)
+            lut.fill(255)
+            lut[0] = 0
+            mask = tile.point(lut, 'L')
+        else:
+            mask = tile.convert('L')
+        if invert:
+            mask = PIL.ImageOps.invert(mask)
+        tile = PIL.Image.new('RGBA', mask.size, 'white')
+        tile.putalpha(mask)
+        return tile, tileEncoding
+
+    def _outputTile(self, tile, tileEncoding, *args, **kwargs):
+        encoding = self.encoding
+        if 'normalize' in kwargs and kwargs['normalize']:
+            min_, max_ = kwargs.get('normalizeMin'), kwargs.get('normalizeMax')
+            tile, tileEncoding = self._normalizeImage(tile, tileEncoding,
+                                                      range_=(min_, max_))
+        if 'label' in kwargs and kwargs['label']:
+            invert = kwargs.get('invertLabel', True)
+            flatten = kwargs.get('flattenLabel', False)
+            tile, tileEncoding = self._labelImage(tile, tileEncoding,
+                                                  invert=invert,
+                                                  flatten=flatten)
+            self.encoding = 'PNG'
+        result = super(TiffFileTileSource, self)._outputTile(tile, tileEncoding, 
+                                                             *args, **kwargs)
+        self.encoding = encoding
+        return result
 
     @methodcache()
     def getTile(self, x, y, z, pilImageAllowed=False, sparseFallback=False,

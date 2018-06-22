@@ -6,8 +6,15 @@ import FileListWidget from 'girder/views/widgets/FileListWidget';
 import { wrap } from 'girder/utilities/PluginUtils';
 import { AccessType } from 'girder/constants';
 
+import LargeImageWidget from './largeImageWidget';
+
 import largeImageFileAction from '../templates/largeImage_fileAction.pug';
 import '../stylesheets/fileList.styl';
+
+wrap(FileListWidget, 'initialize', function (initialize, settings) {
+    this.largeImage = settings.largeImage;
+    initialize.call(this, settings);
+});
 
 wrap(FileListWidget, 'render', function (render) {
     render.call(this);
@@ -43,25 +50,25 @@ wrap(FileListWidget, 'render', function (render) {
     });
     this.$('.g-large-image-create').on('click', (e) => {
         var cid = $(e.currentTarget).parent().attr('file-cid');
-        var fileId = this.collection.get(cid).id;
-        restRequest({
-            type: 'POST',
-            url: 'item/' + this.parentItem.id + '/tiles',
-            data: {fileId: fileId, notify: true},
-            error: function (error) {
-                if (error.status !== 0) {
-                    events.trigger('g:alert', {
-                        text: error.responseJSON.message,
-                        type: 'info',
-                        timeout: 5000,
-                        icon: 'info'
-                    });
-                }
-            }
-        }).done(() => {
-            this.parentItem.unset('largeImage');
-            this.parentItem.fetch();
-        });
+        this.largeImageDialog(cid);
     });
+
+    if (!this.fileEdit && !this.upload && this.largeImage) {
+        this.largeImageDialog(this.largeImage);
+        this.largeImage = false;
+    }
+
     return this;
 });
+
+FileListWidget.prototype.largeImageDialog = function (cid) {
+    this.largeImageWidget = new LargeImageWidget({
+        el: $('#g-dialog-container'),
+        item: this.parentItem,
+        file: this.collection.get(cid),
+        parentView: this
+    }).off('l:submitted', null, this).on('l:created', function () {
+        this.render();
+    }, this);
+    this.largeImageWidget.render();
+};

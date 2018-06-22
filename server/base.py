@@ -60,6 +60,16 @@ def _postUpload(event):
         item['largeImage']['sourceName'] = 'tiff'
         Item().save(item)
 
+    if item.get('histogram', {}).get('expected') and (
+            fileObj['name'].endswith('.json') or
+            fileObj.get('mimeType') == 'application/json'):
+        if fileObj.get('mimeType') != 'application/json':
+            fileObj['mimeType'] = 'application/json'
+            File().save(fileObj)
+        del item['histogram']['expected']
+        item['histogram']['fileId'] = fileObj['_id']
+        Item().save(item)
+
 
 def _updateJob(event):
     """
@@ -69,11 +79,18 @@ def _updateJob(event):
     from girder.plugins.jobs.constants import JobStatus
     from girder.plugins.jobs.models.job import Job
 
+    tasks = {
+        'createImageItem':
+            ('largeImage', 'Large image', 'finished_image_item'),
+        'createHistogramItem':
+            ('histogram', 'Histogram', 'finished_histogram_item'),
+    }
     job = event.info['job'] if event.name == 'jobs.job.update.after' else event.info
     meta = job.get('meta', {})
     if (meta.get('creator') != 'large_image' or not meta.get('itemId') or
-            meta.get('task') != 'createImageItem'):
+            meta.get('task') not in tasks):
         return
+    field, description, notification = tasks[meta.get('task')]
     status = job['status']
     if event.name == 'model.job.remove' and status not in (
             JobStatus.ERROR, JobStatus.CANCELED, JobStatus.SUCCESS):
@@ -81,33 +98,34 @@ def _updateJob(event):
     if status not in (JobStatus.ERROR, JobStatus.CANCELED, JobStatus.SUCCESS):
         return
     item = Item().load(meta['itemId'], force=True)
-    if not item or 'largeImage' not in item:
+    if not item or field not in item:
         return
-    if item.get('largeImage', {}).get('expected'):
+    if item.get(field, {}).get('expected'):
         # We can get a SUCCESS message before we get the upload message, so
         # don't clear the expected status on success.
         if status != JobStatus.SUCCESS:
-            del item['largeImage']['expected']
-    notify = item.get('largeImage', {}).get('notify')
+            del item[field]['expected']
+    notify = item.get(field, {}).get('notify')
     msg = None
     if notify:
-        del item['largeImage']['notify']
+        del item[field]['notify']
         if status == JobStatus.SUCCESS:
-            msg = 'Large image created'
+            msg = '%s created'
         elif status == JobStatus.CANCELED:
-            msg = 'Large image creation canceled'
+            msg = '%s creation canceled'
         else:  # ERROR
-            msg = 'FAILED: Large image creation failed'
-        msg += ' for item %s' % item['name']
+            msg = 'FAILED: %s creation failed'
+        msg += ' for item %s'
+        msg %= description, item['name']
     if (status in (JobStatus.ERROR, JobStatus.CANCELED) and
-            'largeImage' in item):
-        del item['largeImage']
+            field in item):
+        del item[field]
     Item().save(item)
     if msg and event.name != 'model.job.remove':
         Job().updateJob(job, progressMessage=msg)
     if notify:
         Notification().createNotification(
-            type='large_image.finished_image_item',
+            type='.'.join(('large_image', notification)),
             data={
                 'job_id': job['_id'],
                 'item_id': item['_id'],
@@ -148,32 +166,38 @@ def removeThumbnails(event):
 
 def prepareCopyItem(event):
     """
-    When copying an item, adjust the largeImage fileId reference so it can be
+    When copying an item, adjust the fileId reference so it can be
     matched to the to-be-copied file.
     """
+    fields = ('largeImage', 'histogram')
     srcItem, newItem = event.info
-    if 'largeImage' in newItem:
-        li = newItem['largeImage']
+    hasFields = [field for field in fields if field in newItem]
+    for field in hasFields:
+        li = newItem[field]
         for pos, file in enumerate(Item().childFiles(item=srcItem)):
             for key in ('fileId', 'originalId'):
                 if li.get(key) == file['_id']:
                     li['_index_' + key] = pos
+    if hasFields:
         Item().save(newItem, triggerEvents=False)
 
 
 def handleCopyItem(event):
     """
-    When copying an item, finish adjusting the largeImage fileId reference to
+    When copying an item, finish adjusting the fileId reference to
     the copied file.
     """
+    fields = ('largeImage', 'histogram')
     newItem = event.info
-    if 'largeImage' in newItem:
-        li = newItem['largeImage']
+    hasFields = [field for field in fields if field in newItem]
+    for field in hasFields:
+        li = newItem[field]
         files = list(Item().childFiles(item=newItem))
         for key in ('fileId', 'originalId'):
             pos = li.pop('_index_' + key, None)
             if pos is not None and 0 <= pos < len(files):
                 li[key] = files[pos]['_id']
+    if hasFields:
         Item().save(newItem, triggerEvents=False)
 
 
@@ -267,6 +291,7 @@ def load(info):
     info['apiRoot'].overlay = OverlayResource()
 
     Item().exposeFields(level=AccessType.READ, fields='largeImage')
+    Item().exposeFields(level=AccessType.READ, fields='histogram')
     # Ask for some models to make sure their singletons are initialized.
     Annotation()
     Overlay()

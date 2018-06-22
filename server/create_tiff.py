@@ -22,6 +22,7 @@ import subprocess
 # Define Girder Worker globals for the style checker
 _tempdir = _tempdir   # noqa
 in_path = in_path   # noqa
+compression = compression
 quality = quality   # noqa
 tile_size = tile_size   # noqa
 out_filename = out_filename  # noqa
@@ -37,7 +38,7 @@ convert_command = (
     'tiffsave',
     in_path,
     out_path,
-    '--compression', 'jpeg',
+    '--compression', compression,
     '--Q', str(quality),
     '--tile',
     '--tile-width', str(tile_size),

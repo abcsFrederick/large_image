@@ -354,6 +354,22 @@ var GeojsImageViewerWidget = ImageViewerWidget.extend({
         var query = {};
         if (overlay.get('label')) {
             query['label'] = 1;
+            if (!overlay.get('invertLabel')) {
+                query['invertLabel'] = 0;
+            }
+            if (overlay.get('flattenLabel')) {
+                query['flattenLabel'] = 1;
+            }
+        }
+        var threshold = overlay.get('threshold');
+        if (threshold) {
+            query['normalize'] = 1;
+            if (threshold.min != null) {
+                query['normalizeMin'] = threshold.min;
+            }
+            if (threshold.max != null) {
+                query['normalizeMax'] = threshold.max;
+            }
         }
         var params = geo.util.pixelCoordinateParams(this.el,
                                                     this.sizeX, this.sizeY,
