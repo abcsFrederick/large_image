@@ -7,11 +7,34 @@ var HistogramModel = Model.extend({
         hist: [],
         binEdges: [],
         bins: null,
-        label: null
+        label: null,
+        loading: false
+    },
+
+    save: function () {
+        var restOpts = {
+            url: `item/${this.id}/tiles/histogram`,
+            method: 'POST',
+            data: {},
+            error: null // don't do default error behavior (validation may fail)
+        }
+        _.each(this.keys(), function (key) {
+            var value = this.get(key);
+            if (!_.isObject(value)) {
+                restOpts.data[key] = value;
+            }
+        }, this);
+
+        return restRequest(restOpts).done((resp) => {
+            this.set(resp);
+            this.trigger('g:saved');
+        }).fail((err) => {
+            this.trigger('g:error', err);
+        });
     },
 
     fetch: function (opts) {
-        this.set('loading', true);
+        this.set('loading', true, {silent: true});
         var restOpts = {
             url: `item/${this.id}/tiles/histogram`
         }
@@ -37,21 +60,8 @@ var HistogramModel = Model.extend({
             this.set(resp);
             this.trigger('g:fetched');
         }).fail((err) => {
-            if (err.status == 404) {
-                /*
-                restOpts.method = 'POST';
-                restRequest(restOpts).done((resp) => {
-                    this.set(resp);
-                    this.trigger('g:fetched');
-                }).fail((err) => {
-                    this.set('loading', false);
-                    this.trigger('g:error', err);
-                });
-                */
-            } else {
-                this.set('loading', false);
-                this.trigger('g:error', err);
-            }
+            this.set('loading', false, {silent: true});
+            this.trigger('g:error', err);
         });
     }
 });

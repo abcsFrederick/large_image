@@ -648,32 +648,6 @@ class TilesItemResource(ItemResource):
         return imageData
 
     @describeRoute(
-        Description('Get a histogram of image pixel values.')
-        .param('itemId', 'The ID of the item.', paramType='path')
-        .param('n', 'The number of bins in the histogram',
-               required=False, dataType='int')
-        .param('label', 'Image is a label (ignore zero values)',
-               required=False, dataType='boolean')
-        .errorResponse('ID was invalid.')
-        .errorResponse('Read access was denied for the item.', 403)
-    )
-    @access.cookie
-    @access.public
-    @loadmodel(model='item', map={'itemId': 'item'}, level=AccessType.READ)
-    def _getTilesHistogram(self, item, params):
-        params = self._parseParams(params, True, [
-            ('n', int),
-            ('label', bool),
-        ])
-        try:
-            histogram = self.imageItemModel.getHistogram(item, **params)
-        except TileGeneralException as e:
-            raise RestException(e.args[0])
-        except ValueError as e:
-            raise RestException('Value Error: %s' % e.args[0])
-        return histogram
-
-    @describeRoute(
         Description('Create a histogram for this item.')
         .param('itemId', 'The ID of the item.', paramType='path')
         .param('fileId', 'The ID of the source file containing the image. '

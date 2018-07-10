@@ -596,13 +596,12 @@ histogram = json.dumps({
 
     def createHistogramItem(self, item, fileObj, user=None, token=None,
                            notify=False, bins=256, label=False):
-        #if 'fileId' in item.setdefault('histogram', {}):
-        #    # TODO: automatically delete the existing large file
-        #    raise TileGeneralException('Item already has a histogram set.')
+        if 'fileId' in item.setdefault('histogram', {}):
+            # TODO: automatically delete the existing large file
+            raise TileGeneralException('Item already has a histogram set.')
         if fileObj['itemId'] != item['_id']:
             raise HistogramException('The provided file must be in the '
                                      'provided item.')
-        item['histogram'].pop('expected', None)
         if (item['histogram'].get('expected') is True and
                 'jobId' in item['histogram']):
             raise HistogramException('Item is scheduled to generate a '
@@ -610,7 +609,7 @@ histogram = json.dumps({
 
         item['histogram'].pop('expected', None)
 
-        item['histogram']['fileId'] = fileObj['_id']
+        #item['histogram']['fileId'] = fileObj['_id']
         job = None
 
         # TODO: check if exists
@@ -628,14 +627,15 @@ histogram = json.dumps({
         item['histogram']['label'] = options['label']
 
         self.save(item)
-        return job
+        #return job
+        return item 
 
     def getHistogram(self, item, bins=256, label=False):
         try:
             histogramFileId = item['histogram']['fileId']
-            largeImageFile = File().load(histogramFileId, force=True)
+            histogramFile = File().load(histogramFileId, force=True)
         except (KeyError, ValidationException) as e:
             raise HistogramException(
                 'No histogram file in this item: %s' % item['_id'])
-        return json.load(File().open(largeImageFile))
+        return json.load(File().open(histogramFile))
 
