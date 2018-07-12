@@ -380,6 +380,12 @@ var GeojsImageViewerWidget = ImageViewerWidget.extend({
                                             query, overlay.get('overlayItemId'));
 
         params.layer.visible = overlay.get('displayed');
+        var maxZoom = this.viewer.zoomRange().max;
+        var offset = overlay.get('offset');
+        params.layer.tileOffset = (level) => {
+            var scale = Math.pow(2, level - maxZoom);
+            return {x: -offset.x*scale, y: -offset.y*scale};
+        };
         var geojsLayer = this.viewer.createLayer('osm', params.layer);
         geojsLayer.opacity(this._globalOverlaysOpacity * overlay.get('opacity'));
         //this._overlays.push({

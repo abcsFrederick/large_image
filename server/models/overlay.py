@@ -48,6 +48,7 @@ class Overlay(AccessControlledModel):
             'opacity',
             'threshold',
             'overlayItemId',
+            'offset',
         )
         self.exposeFields(AccessType.READ, fields)
 

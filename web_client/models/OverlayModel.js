@@ -12,7 +12,8 @@ var OverlayModel = AccessControlledModel.extend({
         label: false,
         invertLabel: true,
         flattenLabel: false,
-        overlayItemId: null
+        overlayItemId: null,
+        offset: {x: 0, y: 0}
     },
 
     save: function () {
