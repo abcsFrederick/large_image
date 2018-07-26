@@ -395,30 +395,39 @@ var GeojsImageViewerWidget = ImageViewerWidget.extend({
         };
         //});
 
-        this._setOverlayVisibility(index, overlay.get('visible'));
+        this._setOverlayVisibility(index, overlay.get('displayed'));
 
         return index;
     },
 
+    /*
     addOverlay(overlay) {
         var index = this._addOverlay(overlay);
         this.redrawOverlay(index);
         return index;
     },
+     */
 
     _removeOverlay: function(index) {
         this.viewer.deleteLayer(this._overlays[index].geojsLayer);
         delete this._overlays[index];
     },
 
-    removeOverlay: function(index) {
-        this._removeOverlay(index);
-        this.viewer.draw();
+    removeOverlay: function(overlay) {
+        var index = overlay.get('index');
+        if (_.has(this._overlays, index)) {
+           this._removeOverlay(index);
+           this.viewer.draw();
+        }
     },
 
-    updateOverlay: function(overlay) {
-        this._removeOverlay(overlay.get('index'));
-        var index = this._addOverlay(overlay);
+    //updateOverlay: function(overlay) {
+    drawOverlay: function(overlay) {
+        var index = overlay.get('index');
+        if (_.has(this._overlays, index)) {
+            this._removeOverlay(index);
+        }
+        index = this._addOverlay(overlay);
         this.redrawOverlay(index);
         return index;
     },
