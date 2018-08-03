@@ -51,6 +51,9 @@ except ImportError:
 class HistogramException(Exception):
     pass
 
+class HistogramBusyException(HistogramException):
+    pass
+
 class ImageItem(Item):
     # We try these sources in this order.  The first entry is the fallback for
     # items that antedate there being multiple options.
@@ -489,45 +492,18 @@ class ImageItem(Item):
         return result
 
     def _createHistogramJob(self, item, fileObj, user, token, options):
+        path = os.path.join(os.path.dirname(__file__), '..', 'create_histogram.py')
+        with open(path, 'r') as f:
+            script = f.read()
+
         title = 'Histogram computation: %s' % fileObj['name']
         job = Job().createJob(title=title, type='large_image_histogram',
                               handler='worker_handler', user=user)
         jobToken = Job().createJobToken(job)
 
-# '''
-# # TODO: implement RGB(A)
-# result = {}
-# for i, channel in enumerate(('red', 'green', 'blue')):
-#     hist, binEdges = numpy.histogram(array[:, :, i],
-#                                       **histogram_kwargs)
-#     result[channel] = {
-#         'values': list(hist),
-#         'bins': list(binEdges),
-#     }
-# '''
-
         task = {
             'mode': 'python',
-            'script': '''
-import json
-import PIL.Image
-PIL.Image.MAX_IMAGE_PIXELS = 10000000000
-import numpy
-image = PIL.Image.open(in_path)
-if image.mode not in ('1', 'L', 'P', 'I', 'F'):
-    raise ValueError('invalid image type for histogram: %s' % image.mode)
-array = numpy.array(image)
-if label:
-    array = array[numpy.nonzero(array)]
-hist, binEdges = numpy.histogram(array, bins=bins)
-nonzero = numpy.nonzero(hist)
-histogram = json.dumps({
-    'label': label,
-    'bins': bins,
-    'hist': list(hist[nonzero]),
-    'binEdges': list(binEdges[nonzero]),
-})
-''',
+            'script': script,
             'name': title,
             'inputs': [{
                 'id': 'in_path',
@@ -597,15 +573,18 @@ histogram = json.dumps({
     def createHistogramItem(self, item, fileObj, user=None, token=None,
                            notify=False, bins=256, label=False):
         if 'fileId' in item.setdefault('histogram', {}):
-            # TODO: automatically delete the existing large file
-            raise TileGeneralException('Item already has a histogram set.')
+            histogramFileId = item['histogram']['fileId']
+            histogramFile = File().load(histogramFileId, force=True)
+            if histogramFile:
+                File().remove(histogramFile)
+            del item['histogram']['fileId']
         if fileObj['itemId'] != item['_id']:
             raise HistogramException('The provided file must be in the '
                                      'provided item.')
         if (item['histogram'].get('expected') is True and
                 'jobId' in item['histogram']):
-            raise HistogramException('Item is scheduled to generate a '
-                                     'histogram.')
+            raise HistogramBusyException('Item is scheduled to generate a '
+                                         'histogram.')
 
         item['histogram'].pop('expected', None)
 
@@ -637,5 +616,12 @@ histogram = json.dumps({
         except (KeyError, ValidationException) as e:
             raise HistogramException(
                 'No histogram file in this item: %s' % item['_id'])
-        return json.load(File().open(histogramFile))
+        if not histogramFile:
+            raise HistogramException(
+                'No histogram file in this item: %s' % item['_id'])
+        histogram = json.load(File().open(histogramFile))
+        if histogram['bins'] != bins or histogram['label'] != label:
+            raise HistogramException(
+                'No histogram file in this item: %s' % item['_id'])
+        return histogram
 

@@ -32,7 +32,7 @@ from girder.models.file import File
 from girder.models.item import Item
 
 from ..models import TileGeneralException
-from ..models.image_item import ImageItem, HistogramException
+from ..models.image_item import ImageItem, HistogramException, HistogramBusyException
 from ..tilesource.base import TileInputUnits
 
 from .. import loadmodelcache
@@ -665,6 +665,10 @@ class TilesItemResource(ItemResource):
     @loadmodel(model='item', map={'itemId': 'item'}, level=AccessType.WRITE)
     @filtermodel(model='job', plugin='jobs')
     def createTilesHistogram(self, item, params):
+        params = self._parseParams(params, True, [
+            ('bins', int),
+            ('label', bool),
+        ])
         fileId = params.get('fileId')
         if fileId is None:
             files = list(Item().childFiles(item=item, limit=2))
@@ -681,7 +685,9 @@ class TilesItemResource(ItemResource):
                 notify=self.boolParam('notify', params, default=True),
                 bins=params.get('bins', 256),
                 label=self.boolParam('label', params, default=False))
-        except TileGeneralException as e:
+        except HistogramBusyException as e:
+            raise RestException(e.args[0], code=409)
+        except HistogramException as e:
             raise RestException(e.args[0])
 
     @describeRoute(
