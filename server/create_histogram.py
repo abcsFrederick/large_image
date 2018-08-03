@@ -4,9 +4,14 @@ import numpy
 
 PIL.Image.MAX_IMAGE_PIXELS = 10000000000
 
-image = PIL.Image.open(in_path)
-if image.mode not in ('1', 'L', 'P', 'I', 'F'):
-    raise ValueError('invalid image type for histogram: %s' % image.mode)
+try:
+    image = PIL.Image.open(in_path)
+except:
+    import pytiff
+    image = pytiff.Tiff(in_path)
+else:
+    if image.mode not in ('1', 'L', 'P', 'I', 'F'):
+        raise ValueError('invalid image type for histogram: %s' % image.mode)
 
 array = numpy.array(image)
 if label:
