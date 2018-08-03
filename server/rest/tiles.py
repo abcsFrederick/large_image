@@ -711,7 +711,8 @@ class TilesItemResource(ItemResource):
             ('bins', int),
             ('label', bool),
         ])
-        params.pop('fileId')
+        if 'fileId' in params:
+            params.pop('fileId')
         try:
             histogram = self.imageItemModel.getHistogram(item, **params)
         except HistogramException as e:
