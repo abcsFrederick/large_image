@@ -126,7 +126,11 @@ class TilesItemResource(ItemResource):
     def createTiles(self, item, params):
         largeImageFileId = params.get('fileId')
         if largeImageFileId is None:
-            files = list(Item().childFiles(item=item, limit=2))
+            #files = list(Item().childFiles(item=item, limit=2))
+            files = list(File().find({
+                'itemId': item['_id'],
+                'mimeType': 'image/tiff',  # FIXME: exclude histograms
+            }, limit=2))
             if len(files) == 1:
                 largeImageFileId = str(files[0]['_id'])
         if not largeImageFileId:
@@ -671,7 +675,10 @@ class TilesItemResource(ItemResource):
         ])
         fileId = params.get('fileId')
         if fileId is None:
-            files = list(Item().childFiles(item=item, limit=2))
+            files = list(File().find({
+                'itemId': item['_id'],
+                'mimeType': 'image/tiff',  # FIXME: exclude histograms
+            }, limit=2))
             if len(files) == 1:
                 fileId = str(files[0]['_id'])
         if not fileId:
