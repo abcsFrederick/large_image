@@ -4,6 +4,11 @@ import numpy
 
 PIL.Image.MAX_IMAGE_PIXELS = 10000000000
 
+in_path = in_path   # noqa
+label = label   # noqa
+bins = bins   # noqa
+bitmask = bitmask   # noqa
+
 try:
     image = PIL.Image.open(in_path)
 except:
@@ -17,10 +22,26 @@ array = numpy.array(image)
 if label:
     array = array[numpy.nonzero(array)]
 
-hist, binEdges = numpy.histogram(array, bins=bins)
+# TODO: integer histogram optimizations
+#if array.dtype == numpy.uint8 and bins == 256:
+#    _bins = range(bins + 1)
+#else:
+#    _bins = bins
+
+if bitmask:
+    hist = numpy.zeros(array.dtype.itemsize*8 + 1 - label)
+    if not label:
+        hist[0] = (array == 0).sum()
+    binEdges = numpy.arange(label, hist.shape[0] + label)
+    for i in range(1, hist.shape[0] + label):
+        hist[i - label] = (array & i > 0).sum()
+else:
+    hist, binEdges = numpy.histogram(array, bins=bins)
+
 #nonzero = numpy.nonzero(hist)
 histogram = json.dumps({
     'label': label,
+    'bitmask': bitmask,
     'bins': bins,
     #'hist': list(hist[nonzero]),
     #'binEdges': list(binEdges[nonzero]),

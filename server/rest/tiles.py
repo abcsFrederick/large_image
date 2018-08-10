@@ -321,6 +321,8 @@ class TilesItemResource(ItemResource):
                required=False, dataType='boolean', default=True)
         .param('flattenLabel', 'Ignore values for transparency.',
                required=False, dataType='boolean', default=False)
+        .param('bitmask', 'Label values are bitmasks.',
+               required=False, dataType='boolean', default=False)
         .produces(ImageMimeTypes)
         .errorResponse('ID was invalid.')
         .errorResponse('Read access was denied for the item.', 403)
@@ -352,6 +354,7 @@ class TilesItemResource(ItemResource):
             ('label', bool),
             ('invertLabel', bool),
             ('flattenLabel', bool),
+            ('bitmask', bool),
         ])
         return self._getTile(item, z, x, y, params, mayRedirect=redirect)
 
@@ -664,6 +667,8 @@ class TilesItemResource(ItemResource):
                required=False, dataType='int')
         .param('label', 'Image is a label (ignore zero values)',
                required=False, dataType='boolean')
+        .param('bitmask', 'Image values are a bitmask',
+               required=False, dataType='boolean')
     )
     @access.user
     @loadmodel(model='item', map={'itemId': 'item'}, level=AccessType.WRITE)
@@ -672,6 +677,7 @@ class TilesItemResource(ItemResource):
         params = self._parseParams(params, True, [
             ('bins', int),
             ('label', bool),
+            ('bitmask', bool),
         ])
         fileId = params.get('fileId')
         if fileId is None:
@@ -691,7 +697,8 @@ class TilesItemResource(ItemResource):
                 item, fileObj, user, token,
                 notify=self.boolParam('notify', params, default=True),
                 bins=params.get('bins', 256),
-                label=self.boolParam('label', params, default=False))
+                label=self.boolParam('label', params, default=False),
+                bitmask=self.boolParam('bitmask', params, default=False))
         except HistogramBusyException as e:
             raise RestException(e.args[0], code=409)
         except HistogramException as e:
@@ -707,6 +714,8 @@ class TilesItemResource(ItemResource):
                required=False, dataType='int')
         .param('label', 'Image is a label (ignore zero values)',
                required=False, dataType='boolean')
+        .param('bitmask', 'Image values are a bitmask',
+               required=False, dataType='boolean')
         .errorResponse('ID was invalid.')
         .errorResponse('Read access was denied for the item.', 403)
     )
@@ -717,6 +726,7 @@ class TilesItemResource(ItemResource):
         params = self._parseParams(params, True, [
             ('bins', int),
             ('label', bool),
+            ('bitmask', bool),
         ])
         if 'fileId' in params:
             params.pop('fileId')

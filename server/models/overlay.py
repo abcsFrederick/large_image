@@ -44,6 +44,7 @@ class Overlay(AccessControlledModel):
             'label',
             'invertLabel',
             'flattenLabel',
+            'bitmask',
             'name',
             'opacity',
             'threshold',

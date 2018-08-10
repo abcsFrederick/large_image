@@ -8,7 +8,8 @@ var HistogramModel = Model.extend({
         binEdges: [],
         bins: null,
         label: null,
-        loading: false
+        loading: false,
+        bitmask: false
     },
 
     save: function () {
@@ -38,7 +39,7 @@ var HistogramModel = Model.extend({
         var restOpts = {
             url: `item/${this.id}/tiles/histogram`
         }
-        var keys = ['fileId', 'bins', 'label'];
+        var keys = ['fileId', 'bins', 'label', 'bitmask'];
         var params = {};
         _.each(keys, (key) => {
             if (this.get(key) != null) {

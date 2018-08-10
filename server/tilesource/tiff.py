@@ -20,6 +20,7 @@
 import base64
 import itertools
 import math
+import operator
 import six
 from six import BytesIO
 from six.moves import range
@@ -176,25 +177,35 @@ class TiffFileTileSource(FileTileSource):
             'mm_y': mm_y,
         }
 
-    def _normalizeImage(self, tile, tileEncoding, range_):
+    def _normalizeImage(self, tile, tileEncoding, range_, bitmask=False):
         if tileEncoding != TILE_FORMAT_PIL:
             tile = PIL.Image.open(BytesIO(tile))
             tileEncoding = TILE_FORMAT_PIL
         if len(tile.getbands()) > 1:
             raise NotImplementedError('single band label images only')
-        array = numpy.asarray(tile, dtype=numpy.float32)
-        min_, max_ = range_
-        if min_ == max_:
-            array[numpy.where(array != min_)] = 0
-            array[numpy.nonzero(array)] = 255
+        if bitmask:
+            if tile.mode != 'L':
+                raise NotImplementedError('8-bit bitmask images only')
+            mask = numpy.asarray(tile)
+            array = numpy.zeros(mask.shape, dtype=numpy.uint8)
+            for i in range(max(0, int(range_[0]) - 1), int(range_[1])):
+                array += mask & 1 << i
+            tile = PIL.Image.fromarray(array)
         else:
-            array -= min_
-            array *= 255/(max_ - min_)
-        tile = PIL.Image.fromarray(array.round())
-        tile = tile.convert('L')
+            array = numpy.asarray(tile, dtype=numpy.float32)
+            min_, max_ = range_
+            if min_ == max_:
+                array[numpy.where(array != min_)] = 0
+                array[numpy.nonzero(array)] = 255
+            else:
+                array -= min_
+                array *= 255/(max_ - min_)
+            tile = PIL.Image.fromarray(array.round())
+            tile = tile.convert('L')
         return tile, tileEncoding
 
-    def _labelImage(self, tile, tileEncoding, invert=True, flatten=False):
+    def _labelImage(self, tile, tileEncoding,
+                    invert=True, flatten=False, bitmask=False):
         if tileEncoding != TILE_FORMAT_PIL:
             tile = PIL.Image.open(BytesIO(tile))
             tileEncoding = TILE_FORMAT_PIL
@@ -223,15 +234,21 @@ class TiffFileTileSource(FileTileSource):
         encoding = self.encoding
         if 'normalize' in kwargs and kwargs['normalize']:
             min_, max_ = kwargs.get('normalizeMin'), kwargs.get('normalizeMax')
+            bitmask = kwargs.get('bitmask', False)
             tile, tileEncoding = self._normalizeImage(tile, tileEncoding,
-                                                      range_=(min_, max_))
+                                                      range_=(min_, max_),
+                                                      bitmask=bitmask)
         if 'label' in kwargs and kwargs['label']:
             invert = kwargs.get('invertLabel', True)
             flatten = kwargs.get('flattenLabel', False)
+            bitmask = kwargs.get('bitmask', False)
             tile, tileEncoding = self._labelImage(tile, tileEncoding,
                                                   invert=invert,
-                                                  flatten=flatten)
+                                                  flatten=flatten,
+                                                  bitmask=bitmask)
             self.encoding = 'PNG'
+
+
         result = super(TiffFileTileSource, self)._outputTile(tile, tileEncoding, 
                                                              *args, **kwargs)
         self.encoding = encoding

@@ -361,6 +361,9 @@ var GeojsImageViewerWidget = ImageViewerWidget.extend({
                 query['flattenLabel'] = 1;
             }
         }
+        if (overlay.get('bitmask')) {
+            query['bitmask'] = 1;
+        }
         var threshold = overlay.get('threshold');
         if (threshold) {
             query['normalize'] = 1;

@@ -518,6 +518,10 @@ class ImageItem(Item):
                 'id': 'label',
                 'type': 'boolean',
                 'format': 'boolean',
+            }, {
+                'id': 'bitmask',
+                'type': 'boolean',
+                'format': 'boolean',
             }],
             'outputs': [{
                 'id': 'histogram',
@@ -541,6 +545,12 @@ class ImageItem(Item):
                 'type': 'boolean',
                 'format': 'boolean',
                 'data': options.get('label', False),
+            },
+            'bitmask': {
+                'mode': 'inline',
+                'type': 'boolean',
+                'format': 'boolean',
+                'data': options.get('bitmask', False),
             },
         }
 
@@ -571,7 +581,7 @@ class ImageItem(Item):
         return job
 
     def createHistogramItem(self, item, fileObj, user=None, token=None,
-                           notify=False, bins=256, label=False):
+                           notify=False, bins=256, label=False, bitmask=False):
         if 'fileId' in item.setdefault('histogram', {}):
             histogramFileId = item['histogram']['fileId']
             histogramFile = File().load(histogramFileId, force=True)
@@ -596,6 +606,7 @@ class ImageItem(Item):
         options = {
             'bins': bins,
             'label': label,
+            'bitmask': bitmask,
         }
         job = self._createHistogramJob(item, fileObj, user, token, options)
         item['histogram']['expected'] = True
@@ -604,12 +615,13 @@ class ImageItem(Item):
         item['histogram']['jobId'] = job['_id']
         item['histogram']['bins'] = options['bins']
         item['histogram']['label'] = options['label']
+        item['histogram']['bitmask'] = options['bitmask']
 
         self.save(item)
         #return job
         return item 
 
-    def getHistogram(self, item, bins=256, label=False):
+    def getHistogram(self, item, bins=256, label=False, bitmask=False):
         try:
             histogramFileId = item['histogram']['fileId']
             histogramFile = File().load(histogramFileId, force=True)
@@ -620,7 +632,8 @@ class ImageItem(Item):
             raise HistogramException(
                 'No histogram file in this item: %s' % item['_id'])
         histogram = json.load(File().open(histogramFile))
-        if histogram['bins'] != bins or histogram['label'] != label:
+        if (histogram['bins'] != bins or histogram['label'] != label or
+               histogram['bitmask'] != bitmask):
             raise HistogramException(
                 'No histogram file in this item: %s' % item['_id'])
         return histogram
