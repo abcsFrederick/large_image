@@ -637,4 +637,3 @@ class ImageItem(Item):
             raise HistogramException(
                 'No histogram file in this item: %s' % item['_id'])
         return histogram
-

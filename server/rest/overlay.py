@@ -12,6 +12,7 @@ from girder.exceptions import ValidationException, RestException
 from girder.models.item import Item
 from girder.models.user import User
 from ..models.overlay import Overlay
+from ..models.colormap import Colormap
 
 class OverlayResource(Resource):
     def __init__(self):
@@ -78,6 +79,11 @@ class OverlayResource(Resource):
             Item().requireAccess(overlayItem, user=user, level=AccessType.READ)
             overlay['overlayItemId'] = overlayItem['_id']
 
+        if 'colormapId' in overlay and overlay['colormapId']:
+            colormap = Colormap().load(overlay['colormapId'], force=True)
+            Colormap().requireAccess(colormap, user=user, level=AccessType.READ)
+            overlay['colormapId'] = colormap['_id']
+
         return Overlay().createOverlay(user, **overlay)
 
     @describeRoute(
@@ -141,6 +147,10 @@ class OverlayResource(Resource):
             overlayItem = Item().load(update['overlayItemId'], force=True)
             Item().requireAccess(overlayItem, user=user, level=AccessType.READ)
             update['overlayItemId'] = overlayItem['_id']
+        if 'colormapId' in overlay and overlay['colormapId']:
+            colormap = Colormap().load(overlay['colormapId'], force=True)
+            Colormap().requireAccess(colormap, user=user, level=AccessType.READ)
+            overlay['colormapId'] = colormap['_id']
         if '_id' in update:
             del update['_id']
         return Overlay().updateOverlay(overlay, update)

@@ -41,7 +41,7 @@ except ImportError:
 from .base import TILE_FORMAT_PIL
 
 try:
-    import PIL.Image, PIL.ImageOps, PIL.ImageMath
+    import PIL.Image, PIL.ImageOps, PIL.ImageMath, PIL.ImagePalette
 except ImportError:
     PIL = None
 try:
@@ -188,8 +188,11 @@ class TiffFileTileSource(FileTileSource):
                 raise NotImplementedError('8-bit bitmask images only')
             mask = numpy.asarray(tile)
             array = numpy.zeros(mask.shape, dtype=numpy.uint8)
-            for i in range(max(0, int(range_[0]) - 1), int(range_[1])):
-                array += mask & 1 << i
+            min_, max_ = max(1, int(range_[0])), min(8, int(range_[1]))
+            for i in range(min_, max_ + 1):
+                #array += mask & 1 << i
+                value = int(i*255/8)
+                array[numpy.nonzero(mask & 1 << i - 1)] = value
             tile = PIL.Image.fromarray(array)
         else:
             array = numpy.asarray(tile, dtype=numpy.float32)
@@ -204,8 +207,23 @@ class TiffFileTileSource(FileTileSource):
             tile = tile.convert('L')
         return tile, tileEncoding
 
-    def _labelImage(self, tile, tileEncoding,
-                    invert=True, flatten=False, bitmask=False):
+    def _colormapImage(self, tile, tileEncoding, colormap, label=False):
+        if tileEncoding != TILE_FORMAT_PIL:
+            tile = PIL.Image.open(BytesIO(tile))
+            tileEncoding = TILE_FORMAT_PIL
+        if len(tile.getbands()) > 1:
+            return tile, tileEncoding
+            raise NotImplementedError('single band label images only')
+        if label:
+            # ouch
+            mask = tile.point(lambda x: 0 if x == 0 else 255, '1')
+        palette = PIL.ImagePalette.ImagePalette(palette=colormap)
+        tile.putpalette(palette)
+        if label:
+            tile.putalpha(mask)
+        return tile, tileEncoding
+
+    def _labelImage(self, tile, tileEncoding, invert=True, flatten=False):
         if tileEncoding != TILE_FORMAT_PIL:
             tile = PIL.Image.open(BytesIO(tile))
             tileEncoding = TILE_FORMAT_PIL
@@ -238,18 +256,24 @@ class TiffFileTileSource(FileTileSource):
             tile, tileEncoding = self._normalizeImage(tile, tileEncoding,
                                                       range_=(min_, max_),
                                                       bitmask=bitmask)
-        if 'label' in kwargs and kwargs['label']:
+
+        label = kwargs.get('label', False)
+        if 'colormap' in kwargs and kwargs['colormap']:
+            colormap = kwargs['colormap']
+            tile, tileEncoding = self._colormapImage(tile, tileEncoding,
+                                                     colormap, label)
+            self.encoding = 'PNG'
+        elif label:
             invert = kwargs.get('invertLabel', True)
             flatten = kwargs.get('flattenLabel', False)
-            bitmask = kwargs.get('bitmask', False)
             tile, tileEncoding = self._labelImage(tile, tileEncoding,
                                                   invert=invert,
-                                                  flatten=flatten,
-                                                  bitmask=bitmask)
+                                                  flatten=flatten)
             self.encoding = 'PNG'
 
 
-        result = super(TiffFileTileSource, self)._outputTile(tile, tileEncoding, 
+        result = super(TiffFileTileSource, self)._outputTile(tile,
+                                                             tileEncoding,
                                                              *args, **kwargs)
         self.encoding = encoding
         return result

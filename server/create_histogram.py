@@ -34,7 +34,7 @@ if bitmask:
         hist[0] = (array == 0).sum()
     binEdges = numpy.arange(label, hist.shape[0] + label)
     for i in range(1, hist.shape[0] + label):
-        hist[i - label] = (array & i > 0).sum()
+        hist[i - label] = (array & 1 << i - 1 > 0).sum()
 else:
     hist, binEdges = numpy.histogram(array, bins=bins)
 

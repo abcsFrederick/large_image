@@ -33,6 +33,7 @@ from girder.models.item import Item
 
 from ..models import TileGeneralException
 from ..models.image_item import ImageItem, HistogramException, HistogramBusyException
+from ..models.colormap import Colormap
 from ..tilesource.base import TileInputUnits
 
 from .. import loadmodelcache
@@ -323,6 +324,8 @@ class TilesItemResource(ItemResource):
                required=False, dataType='boolean', default=False)
         .param('bitmask', 'Label values are bitmasks.',
                required=False, dataType='boolean', default=False)
+        .param('colormapId', 'ID of colormap to apply to image.',
+               required=False)
         .produces(ImageMimeTypes)
         .errorResponse('ID was invalid.')
         .errorResponse('Read access was denied for the item.', 403)
@@ -356,6 +359,12 @@ class TilesItemResource(ItemResource):
             ('flattenLabel', bool),
             ('bitmask', bool),
         ])
+        if 'colormapId' in params:
+            colormap = Colormap().load(params['colormapId'],
+                                       user=self.getCurrentUser(),
+                                       level=AccessType.READ)
+            del params['colormapId']
+            params['colormap'] = bytearray(colormap['binary'])
         return self._getTile(item, z, x, y, params, mayRedirect=redirect)
 
     @describeRoute(
@@ -735,4 +744,3 @@ class TilesItemResource(ItemResource):
         except HistogramException as e:
             raise RestException(e.args[0], code=404)
         return histogram
-

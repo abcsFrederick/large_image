@@ -89,7 +89,7 @@ var GeojsImageViewerWidget = ImageViewerWidget.extend({
             params.layer.useCredentials = true;
             params.layer.url = this._getTileUrl('{z}', '{x}', '{y}');
             this.viewer = geo.map(params.map);
-            this.viewer.createLayer('osm', params.layer);
+            this.viewer.createLayer('osm', params.layer).name('image');
         } else {
             params = {
                 keepLower: false,
@@ -107,8 +107,8 @@ var GeojsImageViewerWidget = ImageViewerWidget.extend({
                 top: this.metadata.bounds.ymax,
                 bottom: this.metadata.bounds.ymin
             }, 'EPSG:3857');
-            this.viewer.createLayer('osm');
-            this.viewer.createLayer('osm', params);
+            this.viewer.createLayer('osm').name('blank');
+            this.viewer.createLayer('osm', params).name('image');
         }
         if (this._scale && (this.metadata.mm_x || this.metadata.geospatial || this._scale.scale)) {
             if (!this._scale.scale && !this.metadata.geospatial) {
@@ -374,11 +374,15 @@ var GeojsImageViewerWidget = ImageViewerWidget.extend({
                 query['normalizeMax'] = threshold.max;
             }
         }
+        var colormapId = overlay.get('colormapId');
+        if (colormapId) {
+            query['colormapId'] = colormapId;
+        }
         var params = geo.util.pixelCoordinateParams(this.el,
                                                     this.sizeX, this.sizeY,
                                                     this.tileWidth, this.tileHeight);
         params.layer.useCredentials = true;
-        params.layer.keepLower = false;
+        //params.layer.keepLower = false;
         params.layer.url = this._getTileUrl('{z}', '{x}', '{y}',
                                             query, overlay.get('overlayItemId'));
 
@@ -389,7 +393,8 @@ var GeojsImageViewerWidget = ImageViewerWidget.extend({
             var scale = Math.pow(2, level - maxZoom);
             return {x: -offset.x*scale, y: -offset.y*scale};
         };
-        var geojsLayer = this.viewer.createLayer('osm', params.layer);
+        var geojsLayer = this.viewer.createLayer('osm', params.layer)
+			  geojsLayer.name('overlay');
         geojsLayer.opacity(this._globalOverlaysOpacity * overlay.get('opacity'));
         //this._overlays.push({
         this._overlays[index] = {

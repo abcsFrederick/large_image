@@ -33,6 +33,7 @@ from . import constants
 from .models.annotation import Annotation
 from .models.overlay import Overlay
 from .models.image_item import ImageItem
+from .models.colormap import Colormap
 from .loadmodelcache import invalidateLoadModelCache
 from . import cache_util
 
@@ -284,18 +285,20 @@ SettingDefault.defaults.update({
 )
 def load(info):
     from .rest import TilesItemResource, LargeImageResource, \
-                      AnnotationResource, OverlayResource
+                      AnnotationResource, OverlayResource, ColormapResource
 
     TilesItemResource(info['apiRoot'])
     info['apiRoot'].large_image = LargeImageResource()
     info['apiRoot'].annotation = AnnotationResource()
     info['apiRoot'].overlay = OverlayResource()
+    info['apiRoot'].colormap = ColormapResource()
 
     Item().exposeFields(level=AccessType.READ, fields='largeImage')
     Item().exposeFields(level=AccessType.READ, fields='histogram')
     # Ask for some models to make sure their singletons are initialized.
     Annotation()
     Overlay()
+    Colormap()
 
     events.bind('data.process', 'large_image', _postUpload)
     events.bind('jobs.job.update.after', 'large_image', _updateJob)

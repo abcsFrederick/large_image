@@ -24,5 +24,6 @@ from .image_item import ImageItem
 from .base import TileGeneralException
 from .annotation import Annotation
 from .overlay import Overlay
+from .colormap import Colormap
 
-__all__ = (ImageItem, TileGeneralException, Annotation, Overlay)
+__all__ = (ImageItem, TileGeneralException, Annotation, Overlay, Colormap)

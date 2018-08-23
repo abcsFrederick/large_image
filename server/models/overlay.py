@@ -1,22 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-##############################################################################
-#  Copyright Kitware Inc.
-#
-#  Licensed under the Apache License, Version 2.0 ( the "License" );
-#  you may not use this file except in compliance with the License.
-#  You may obtain a copy of the License at
-#
-#    http://www.apache.org/licenses/LICENSE-2.0
-#
-#  Unless required by applicable law or agreed to in writing, software
-#  distributed under the License is distributed on an "AS IS" BASIS,
-#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-#  See the License for the specific language governing permissions and
-#  limitations under the License.
-##############################################################################
-
 from girder import events
 from girder.constants import AccessType, SortDir
 from girder.exceptions import AccessException, ValidationException
@@ -31,6 +15,7 @@ class Overlay(AccessControlledModel):
             'index',
             'name',
             'overlayItemId',
+            'colormapId',
         ])
 
         fields = (
@@ -50,10 +35,16 @@ class Overlay(AccessControlledModel):
             'threshold',
             'overlayItemId',
             'offset',
+            'colormapId',
         )
         self.exposeFields(AccessType.READ, fields)
 
+        events.bind('model.item.remove', 'colormap', self._onColormapRemove)
         events.bind('model.item.remove', 'large_image', self._onItemRemove)
+
+    def _onColormapRemove(self, event):
+         self.update({'colormapId': event.item['_id']},
+                     {'$unset': {'colormapId': ""}})
 
     def _onItemRemove(self, event):
         item = event.info
