@@ -329,6 +329,7 @@ class TilesItemResource(ItemResource):
         .produces(ImageMimeTypes)
         .errorResponse('ID was invalid.')
         .errorResponse('Read access was denied for the item.', 403)
+        .errorResponse('Invalid colormap on server.', 500)
     )
     # Without caching, this checks for permissions every time.  By using the
     # LoadModelCache, three database lookups are avoided, which saves around
@@ -338,6 +339,7 @@ class TilesItemResource(ItemResource):
     #   @loadmodel(model='item', map={'itemId': 'item'}, level=AccessType.READ)
     #   def getTile(self, item, z, x, y, params):
     #       return self._getTile(item, z, x, y, params, True)
+    @access.cookie   # access.cookie always looks up the token
     @access.public
     def getTile(self, itemId, z, x, y, params):
         _adjustParams(params)
@@ -364,7 +366,10 @@ class TilesItemResource(ItemResource):
                                        user=self.getCurrentUser(),
                                        level=AccessType.READ)
             del params['colormapId']
-            params['colormap'] = bytearray(colormap['binary'])
+            try:
+                params['colormap'] = bytearray(colormap['binary'])
+            except (KeyError, TypeError) as e:
+                raise RestException('Invalid colormap on server', code=500)
         return self._getTile(item, z, x, y, params, mayRedirect=redirect)
 
     @describeRoute(

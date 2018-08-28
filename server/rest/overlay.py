@@ -145,12 +145,16 @@ class OverlayResource(Resource):
                 update['itemId'] = item['_id']
         if 'overlayItemId' in update:
             overlayItem = Item().load(update['overlayItemId'], force=True)
-            Item().requireAccess(overlayItem, user=user, level=AccessType.READ)
-            update['overlayItemId'] = overlayItem['_id']
-        if 'colormapId' in overlay and overlay['colormapId']:
-            colormap = Colormap().load(overlay['colormapId'], force=True)
-            Colormap().requireAccess(colormap, user=user, level=AccessType.READ)
-            overlay['colormapId'] = colormap['_id']
+            if item is not None:
+                Item().requireAccess(overlayItem,
+                                     user=user, level=AccessType.READ)
+                update['overlayItemId'] = overlayItem['_id']
+        if update.get('colormapId'):
+            colormap = Colormap().load(update['colormapId'], force=True)
+            if colormap is not None:
+                Colormap().requireAccess(colormap,
+                                         user=user, level=AccessType.READ)
+                update['colormapId'] = colormap['_id']
         if '_id' in update:
             del update['_id']
         return Overlay().updateOverlay(overlay, update)

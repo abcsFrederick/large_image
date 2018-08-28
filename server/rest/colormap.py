@@ -1,3 +1,5 @@
+import json
+
 from bson.objectid import ObjectId
 
 from girder.api import access
@@ -7,6 +9,7 @@ from girder.constants import AccessType, TokenScope
 from girder.exceptions import RestException
 from girder.models.model_base import ValidationException
 from girder.models.item import Item
+from girder.models.file import File
 from ..models.colormap import Colormap
 
 class ColormapResource(Resource):
@@ -16,6 +19,7 @@ class ColormapResource(Resource):
         self.resourceName = 'colormap'
         self.route('GET', (), self.find)
         self.route('POST', (), self.createColormap)
+        self.route('POST', ('file', ':fileId'), self.createColormapFromFile)
         self.route('DELETE', (':id',), self.deleteColormap)
         self.route('GET', (':id',), self.getColormap)
         self.route('PUT', (':id',), self.updateColormap)
@@ -59,6 +63,33 @@ class ColormapResource(Resource):
         .errorResponse('Write access was denied for the colormap.', 403)
     )
     def createColormap(self, name, public, colormap):
+        try:
+            return Colormap().createColormap(
+                self.getCurrentUser(), colormap, name, public)
+        except ValidationException as exc:
+            logger.exception('Failed to validate colormap')
+            raise RestException(
+                'Validation Error: JSON doesn\'t follow schema (%r).' % (
+                    exc.args, ))
+
+    @access.user(scope=TokenScope.DATA_WRITE)
+    @filtermodel(model='colormap', plugin='large_image')
+    @autoDescribeRoute(
+        Description('Create a colormap from a file.')
+        .responseClass('Colormap')
+        .param('name', 'Name for the colormap.', required=False, strip=True)
+        .param('public', 'Whether the colormap should be publicly visible.',
+               dataType='boolean', required=False)
+        .modelParam('fileId', model='file', level=AccessType.READ)
+        .errorResponse('Write access was denied for the colormap.', 403)
+    )
+    def createColormapFromFile(self, name, public, file):
+        params = json.load(File().open(file))
+        colormap = params.get('colormap', {})
+        if name is None:
+            name = params.get('name')
+        if public is None:
+            public = params.get('public', False)
         try:
             return Colormap().createColormap(
                 self.getCurrentUser(), colormap, name, public)
