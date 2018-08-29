@@ -374,6 +374,11 @@ var GeojsImageViewerWidget = ImageViewerWidget.extend({
                 query['normalizeMax'] = threshold.max;
             }
         }
+        var exclude = overlay.get('exclude');
+        if (overlay.get('bitmask') && exclude.length) {
+            //query['overlayId'] = overlay.id;
+            query['exclude'] = exclude.toString();
+        }
         var colormapId = overlay.get('colormapId');
         if (colormapId) {
             query['colormapId'] = colormapId;
@@ -394,7 +399,7 @@ var GeojsImageViewerWidget = ImageViewerWidget.extend({
             return {x: -offset.x*scale, y: -offset.y*scale};
         };
         var geojsLayer = this.viewer.createLayer('osm', params.layer)
-			  geojsLayer.name('overlay');
+        geojsLayer.name('overlay');
         geojsLayer.opacity(this._globalOverlaysOpacity * overlay.get('opacity'));
         //this._overlays.push({
         this._overlays[index] = {

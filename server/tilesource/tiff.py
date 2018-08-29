@@ -177,7 +177,8 @@ class TiffFileTileSource(FileTileSource):
             'mm_y': mm_y,
         }
 
-    def _normalizeImage(self, tile, tileEncoding, range_, bitmask=False):
+    def _normalizeImage(self, tile, tileEncoding, range_, exclude=None,
+                        bitmask=False):
         if tileEncoding != TILE_FORMAT_PIL:
             tile = PIL.Image.open(BytesIO(tile))
             tileEncoding = TILE_FORMAT_PIL
@@ -190,6 +191,8 @@ class TiffFileTileSource(FileTileSource):
             array = numpy.zeros(mask.shape, dtype=numpy.uint8)
             min_, max_ = max(1, int(range_[0])), min(8, int(range_[1]))
             for i in range(min_, max_ + 1):
+                if bitmask and exclude and i in exclude:
+                    continue
                 #array += mask & 1 << i
                 value = int(i*255/8)
                 array[numpy.nonzero(mask & 1 << i - 1)] = value
@@ -252,9 +255,11 @@ class TiffFileTileSource(FileTileSource):
         encoding = self.encoding
         if 'normalize' in kwargs and kwargs['normalize']:
             min_, max_ = kwargs.get('normalizeMin'), kwargs.get('normalizeMax')
+            exclude = kwargs.get('exclude')
             bitmask = kwargs.get('bitmask', False)
             tile, tileEncoding = self._normalizeImage(tile, tileEncoding,
                                                       range_=(min_, max_),
+                                                      exclude=exclude,
                                                       bitmask=bitmask)
 
         label = kwargs.get('label', False)

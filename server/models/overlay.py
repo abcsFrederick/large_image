@@ -33,6 +33,7 @@ class Overlay(AccessControlledModel):
             'name',
             'opacity',
             'threshold',
+            'exclude',
             'overlayItemId',
             'offset',
             'colormapId',

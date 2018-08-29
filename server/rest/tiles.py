@@ -33,6 +33,7 @@ from girder.models.item import Item
 
 from ..models import TileGeneralException
 from ..models.image_item import ImageItem, HistogramException, HistogramBusyException
+from ..models.overlay import Overlay
 from ..models.colormap import Colormap
 from ..tilesource.base import TileInputUnits
 
@@ -322,8 +323,11 @@ class TilesItemResource(ItemResource):
                required=False, dataType='boolean', default=True)
         .param('flattenLabel', 'Ignore values for transparency.',
                required=False, dataType='boolean', default=False)
+        .param('exclude', 'Label values to exclude.', required=False)
         .param('bitmask', 'Label values are bitmasks.',
                required=False, dataType='boolean', default=False)
+        #.param('overlayId', 'ID of overlay for image parameters.',
+        #       required=False)
         .param('colormapId', 'ID of colormap to apply to image.',
                required=False)
         .produces(ImageMimeTypes)
@@ -352,7 +356,7 @@ class TilesItemResource(ItemResource):
         redirect = params.get('redirect', False)
         if redirect not in ('any', 'exact', 'encoding'):
             redirect = False
-        params = self._parseParams(params, True, [
+        typeList = [
             ('normalize', bool),
             ('normalizeMin', float),
             ('normalizeMax', float),
@@ -360,7 +364,20 @@ class TilesItemResource(ItemResource):
             ('invertLabel', bool),
             ('flattenLabel', bool),
             ('bitmask', bool),
-        ])
+        ]
+        params = self._parseParams(params, True, typeList)
+        if 'exclude' in params:
+            # TODO: error handling
+            params['exclude'] = [int(s) for s in params['exclude'].split(',')]
+        #if 'overlayId' in params:
+        #    overlay = Overlay().load(params['overlayId'],
+        #                               user=self.getCurrentUser(),
+        #                               level=AccessType.READ)
+        #    #for paramName, _ in typeList:
+        #    #    if paramName in overlay and paramName not in params:
+        #    #        params[paramName] = overlay[paramName]
+        #    if 'exclude' in overlay and overlay['exclude']:
+        #        params['exclude'] = overlay['exclude']
         if 'colormapId' in params:
             colormap = Colormap().load(params['colormapId'],
                                        user=self.getCurrentUser(),
