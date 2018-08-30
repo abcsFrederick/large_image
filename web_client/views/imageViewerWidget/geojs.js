@@ -375,7 +375,7 @@ var GeojsImageViewerWidget = ImageViewerWidget.extend({
             }
         }
         var exclude = overlay.get('exclude');
-        if (overlay.get('bitmask') && exclude.length) {
+        if (overlay.get('bitmask') && exclude && exclude.length) {
             //query['overlayId'] = overlay.id;
             query['exclude'] = exclude.toString();
         }
