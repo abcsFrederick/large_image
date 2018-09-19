@@ -110,6 +110,9 @@ var GeojsImageViewerWidget = ImageViewerWidget.extend({
             this.viewer.createLayer('osm').name('blank');
             this.viewer.createLayer('osm', params).name('image');
         }
+        this.viewer.geoOn(geo.event.pan, () => {
+            this.setBounds();
+        });
         if (this._scale && (this.metadata.mm_x || this.metadata.geospatial || this._scale.scale)) {
             if (!this._scale.scale && !this.metadata.geospatial) {
                 this._scale.scale = this.metadata.mm_x / 100;
@@ -125,7 +128,6 @@ var GeojsImageViewerWidget = ImageViewerWidget.extend({
             features: ['point', 'line', 'polygon']
         });
         this.setGlobalAnnotationOpacity(this._globalAnnotationOpacity);
-        this.featureLayer.geoOn(window.geo.event.pan, () => { this.setBounds(); });
         // the annotation layer is for annotations that are actively drawn
         this.annotationLayer = this.viewer.createLayer('annotation', {
             annotations: ['point', 'line', 'rectangle', 'polygon'],
@@ -184,7 +186,7 @@ var GeojsImageViewerWidget = ImageViewerWidget.extend({
             options: options,
             annotation: annotation
         };
-        if (options.fetch && !present) {
+        if (options.fetch && (!present || annotation.refresh())) {
             annotation.off('g:fetched', null, this).on('g:fetched', () => {
                 // Trigger an event indicating to the listener that
                 // mouseover states should reset.
@@ -196,9 +198,10 @@ var GeojsImageViewerWidget = ImageViewerWidget.extend({
             }, this);
             this.setBounds({[annotation.id]: this._annotations[annotation.id]});
         }
+        annotation.refresh(false);
         var featureList = this._annotations[annotation.id].features;
         this._featureOpacity[annotation.id] = {};
-        window.geo.createFileReader('jsonReader', {layer: this.featureLayer})
+        geo.createFileReader('jsonReader', {layer: this.featureLayer})
             .read(geojson, (features) => {
                 _.each(features || [], (feature) => {
                     var events = geo.event.feature;
