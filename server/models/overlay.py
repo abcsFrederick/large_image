@@ -44,7 +44,7 @@ class Overlay(AccessControlledModel):
         events.bind('model.item.remove', 'large_image', self._onItemRemove)
 
     def _onColormapRemove(self, event):
-         self.update({'colormapId': event.item['_id']},
+         self.update({'colormapId': event.info['_id']},
                      {'$unset': {'colormapId': ""}})
 
     def _onItemRemove(self, event):
