@@ -403,6 +403,7 @@ var GeojsImageViewerWidget = ImageViewerWidget.extend({
         };
         var geojsLayer = this.viewer.createLayer('osm', params.layer)
         geojsLayer.name('overlay');
+        geojsLayer.zIndex(this.featureLayer.zIndex());
         geojsLayer.opacity(this._globalOverlaysOpacity * overlay.get('opacity'));
         //this._overlays.push({
         this._overlays[index] = {
