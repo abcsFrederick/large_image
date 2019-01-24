@@ -31,6 +31,7 @@ var GeojsImageViewerWidget = ImageViewerWidget.extend({
         this._featureOpacity = {};
         this._globalAnnotationOpacity = settings.globalAnnotationOpacity || 1.0;
         this._globalOverlaysOpacity = settings.globalOverlaysOpacity || 1.0;
+        this._globalAnnotationFillOpacity = settings.globalAnnotationFillOpacity || 1.0;
         this._highlightFeatureSizeLimit = settings.highlightFeatureSizeLimit || 10000;
         this._overlays = [];
         this.listenTo(events, 's:widgetDrawRegion', this.drawRegion);
@@ -115,7 +116,8 @@ var GeojsImageViewerWidget = ImageViewerWidget.extend({
         });
         if (this._scale && (this.metadata.mm_x || this.metadata.geospatial || this._scale.scale)) {
             if (!this._scale.scale && !this.metadata.geospatial) {
-                this._scale.scale = this.metadata.mm_x / 100;
+                // convert mm to m.
+                this._scale.scale = this.metadata.mm_x / 1000;
             }
             this.uiLayer = this.viewer.createLayer('ui');
             this.scaleWidget = this.uiLayer.createWidget('scale', this._scale);
@@ -128,6 +130,7 @@ var GeojsImageViewerWidget = ImageViewerWidget.extend({
             features: ['point', 'line', 'polygon']
         });
         this.setGlobalAnnotationOpacity(this._globalAnnotationOpacity);
+        this.setGlobalAnnotationFillOpacity(this._globalAnnotationFillOpacity);
         // the annotation layer is for annotations that are actively drawn
         this.annotationLayer = this.viewer.createLayer('annotation', {
             annotations: ['point', 'line', 'rectangle', 'polygon'],
@@ -282,7 +285,7 @@ var GeojsImageViewerWidget = ImageViewerWidget.extend({
 
             for (let i = 0; i < data.length; i += 1) {
                 const id = data[i].id;
-                const fillOpacity = data[i].fillOpacity;
+                const fillOpacity = data[i].fillOpacity * this._globalAnnotationFillOpacity;
                 const strokeOpacity = data[i].strokeOpacity;
                 if (!this._highlightAnnotation ||
                     (!this._highlightElement && annotationId === this._highlightAnnotation) ||
@@ -567,6 +570,7 @@ var GeojsImageViewerWidget = ImageViewerWidget.extend({
         return this;
     },
 
+<<<<<<< HEAD
     setGlobalOverlayOpacity: function (opacity) {
         this._globalOverlaysOpacity = opacity;
         _.each(this._overlays, (_overlay) => {
@@ -586,6 +590,18 @@ var GeojsImageViewerWidget = ImageViewerWidget.extend({
         var _overlay = this._overlays[index];
         var opacity = _overlay.overlay.get('opacity');
         _overlay.geojsLayer.opacity(this._globalOverlaysOpacity * opacity);
+        return this;
+    },
+
+    setGlobalAnnotationFillOpacity: function (opacity) {
+        this._globalAnnotationFillOpacity = opacity;
+        if (this.featureLayer) {
+            _.each(this._annotations, (layer, annotationId) => {
+                const features = layer.features;
+                this._mutateFeaturePropertiesForHighlight(annotationId, features);
+            });
+            this.featureLayer.draw();
+        }
         return this;
     },
 

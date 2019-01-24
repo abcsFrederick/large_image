@@ -1712,6 +1712,12 @@ class TileSource(object):
 class FileTileSource(TileSource):
 
     def __init__(self, path, *args, **kwargs):
+        """
+        Initialize the tile class.  See the base class for other available
+        parameters.
+
+        :param path: a filesystem path for the tile source.
+        """
         super(FileTileSource, self).__init__(*args, **kwargs)
         self.largeImagePath = path
 
@@ -1753,6 +1759,14 @@ if girder:  # noqa - the whole class is allowed to exceed complexity rules
         girderSource = True
 
         def __init__(self, item, *args, **kwargs):
+            """
+            Initialize the tile class.  See the base class for other available
+            parameters.
+
+            :param item: a Girder item document which contains
+                ['largeImage']['fileId'] identifying the Girder file to be used
+                for the tile source.
+            """
             super(GirderTileSource, self).__init__(item, *args, **kwargs)
             self.item = item
 
@@ -1781,14 +1795,16 @@ if girder:  # noqa - the whole class is allowed to exceed complexity rules
                     # was derived from.  This is always the case if there are 3
                     # or more files.
                     fileIds = [str(file['_id']) for file in Item().childFiles(self.item, limit=3)]
-                    knownIds = [largeImageFileId]
+                    knownIds = [str(largeImageFileId)]
                     if 'originalId' in self.item['largeImage']:
-                        knownIds.append(self.item['largeImage']['originalId'])
+                        knownIds.append(str(self.item['largeImage']['originalId']))
                     self.mayHaveAdjacentFiles = (
                         len(fileIds) >= 3 or
                         fileIds[0] not in knownIds or
                         fileIds[-1] not in knownIds)
                 largeImageFile = File().load(largeImageFileId, force=True)
+                if 'mrxs' in largeImageFile['exts']:
+                    self.mayHaveAdjacentFiles = True
                 largeImagePath = None
                 if self.mayHaveAdjacentFiles and hasattr(File(), 'getGirderMountFilePath'):
                     try:

@@ -240,7 +240,7 @@ class ImageItem(Item):
         tileMimeType = tileSource.getTileMimeType()
         return tileData, tileMimeType
 
-    def delete(self, item):
+    def delete(self, item, skipFileIds=None):
         fields = ('largeImage', 'histogram')
         hasFields = [field for field in fields if field in item]
         for field in hasFields:
@@ -274,7 +274,9 @@ class ImageItem(Item):
                 assert item[field]['originalId'] != \
                     item[field].get('fileId')
 
-                if 'fileId' in item[field]:
+                if ('fileId' in item[field] and (
+                        not skipFileIds or
+                        item[field]['fileId'] not in skipFileIds)):
                     file = File().load(id=item[field]['fileId'], force=True)
                     if file:
                         File().remove(file)
