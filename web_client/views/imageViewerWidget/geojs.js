@@ -570,7 +570,6 @@ var GeojsImageViewerWidget = ImageViewerWidget.extend({
         return this;
     },
 
-<<<<<<< HEAD
     setGlobalOverlayOpacity: function (opacity) {
         this._globalOverlaysOpacity = opacity;
         _.each(this._overlays, (_overlay) => {
