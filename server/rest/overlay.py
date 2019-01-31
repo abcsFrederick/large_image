@@ -108,7 +108,6 @@ class OverlayResource(Resource):
         .errorResponse('Read access was denied for the overlay.', 403)
         .errorResponse('Overlay not found.', 404)
     )
-    @access.cookie
     @access.public
     @loadmodel(model='overlay', plugin='large_image', level=AccessType.READ)
     @filtermodel(model='overlay', plugin='large_image')
