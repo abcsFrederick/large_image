@@ -4,12 +4,13 @@ from bson.objectid import ObjectId
 
 from girder.api import access
 from girder.api.describe import autoDescribeRoute, Description
-from girder.api.rest import Resource, filtermodel
+from girder.api.rest import Resource, filtermodel, setResponseHeader, setContentDisposition
 from girder.constants import AccessType, TokenScope
 from girder.exceptions import RestException
 from girder.models.model_base import ValidationException
 from girder.models.item import Item
 from girder.models.file import File
+from girder.utility import JsonEncoder
 from ..models.colormap import Colormap
 
 class ColormapResource(Resource):
@@ -25,6 +26,7 @@ class ColormapResource(Resource):
         self.route('PUT', (':id',), self.updateColormap)
         self.route('GET', (':id', 'access'), self.getColormapAccess)
         self.route('PUT', (':id', 'access'), self.updateColormapAccess)
+        self.route('GET', (':id', 'download', ':name'), self.download)
 
     @access.public(scope=TokenScope.DATA_READ)
     @filtermodel(model='colormap', plugin='large_image')
@@ -180,3 +182,20 @@ class ColormapResource(Resource):
         Colormap().setPublic(colormap, public)
         return Colormap().setAccessList(colormap, access, save=True,
                                         user=self.getCurrentUser())
+
+    @access.public(scope=TokenScope.DATA_READ)
+    @autoDescribeRoute(
+        Description('Download colormap file.')
+        .modelParam('id', model=Colormap, level=AccessType.READ)
+        .param('name', 'The name of the file.', paramType='path')
+        .errorResponse('ID was invalid.')
+        .errorResponse('Read access was denied for the colormap.', 403)
+    )
+    def download(self, colormap, name):
+        setContentDisposition(name)
+        def stream():
+            yield json.dumps({'colormap': colormap['colormap']},
+                             sort_keys=True, allow_nan=False,
+                             cls=JsonEncoder).encode('utf8')
+        setResponseHeader('Content-Type', 'application/json')
+        return stream
