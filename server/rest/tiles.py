@@ -381,8 +381,9 @@ class TilesItemResource(ItemResource):
         #        params['exclude'] = overlay['exclude']
         if 'colormapId' in params:
             colormap = Colormap().load(params['colormapId'],
-                                       user=self.getCurrentUser(),
-                                       level=AccessType.READ)
+                                       force=True, exc=True)
+                                       #user=self.getCurrentUser(),
+                                       #level=AccessType.READ)
             del params['colormapId']
             try:
                 params['colormap'] = bytearray(colormap['binary'])
