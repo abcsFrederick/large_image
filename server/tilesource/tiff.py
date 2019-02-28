@@ -259,10 +259,11 @@ class TiffFileTileSource(FileTileSource):
 
     def _outputTile(self, tile, tileEncoding, *args, **kwargs):
         encoding = self.encoding
-        if 'normalize' in kwargs and kwargs['normalize']:
-            min_, max_ = kwargs.get('normalizeMin'), kwargs.get('normalizeMax')
+        bitmask = kwargs.get('bitmask', False)
+        if 'normalize' in kwargs and kwargs['normalize'] or bitmask:
+            min_ = kwargs.get('normalizeMin', 0)
+            max_ = kwargs.get('normalizeMax', 255)
             exclude = kwargs.get('exclude')
-            bitmask = kwargs.get('bitmask', False)
             tile, tileEncoding = self._normalizeImage(tile, tileEncoding,
                                                       range_=(min_, max_),
                                                       exclude=exclude,
