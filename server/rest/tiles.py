@@ -326,6 +326,8 @@ class TilesItemResource(ItemResource):
         .param('exclude', 'Label values to exclude.', required=False)
         .param('bitmask', 'Label values are bitmasks.',
                required=False, dataType='boolean', default=False)
+        .param('bitmaskChannel', 'Mask for bitmask channel (value).',
+               required=False, dataType='int')
         #.param('overlayId', 'ID of overlay for image parameters.',
         #       required=False)
         .param('colormapId', 'ID of colormap to apply to image.',
@@ -365,6 +367,7 @@ class TilesItemResource(ItemResource):
             ('invertLabel', bool),
             ('flattenLabel', bool),
             ('bitmask', bool),
+            ('bitmaskChannel', int),
         ]
         params = self._parseParams(params, True, typeList)
         if 'exclude' in params:
@@ -385,10 +388,14 @@ class TilesItemResource(ItemResource):
                                        #user=self.getCurrentUser(),
                                        #level=AccessType.READ)
             del params['colormapId']
-            try:
-                params['colormap'] = bytearray(colormap['binary'])
-            except (KeyError, TypeError) as e:
-                raise RestException('Invalid colormap on server', code=500)
+            if 'bitmaskChannel' in params:
+                params['colormap'] = colormap['colormap']
+            else:
+                try:
+                    params['colormap'] = bytearray(colormap['binary'])
+                except (KeyError, TypeError) as e:
+                    raise RestException('Invalid colormap on server',
+                                        code=500)
         return self._getTile(item, z, x, y, params, mayRedirect=redirect)
     getTile.accessLevel = 'public'
 

@@ -183,6 +183,26 @@ class TiffFileTileSource(FileTileSource):
             'mm_y': mm_y,
         }
 
+    def _bitmaskChannel(self, tile, tileEncoding, channel, colormap=None):
+        if tileEncoding != TILE_FORMAT_PIL:
+            tile = PIL.Image.open(BytesIO(tile))
+            tileEncoding = TILE_FORMAT_PIL
+        if tile.mode != 'L':
+            raise NotImplementedError('8-bit bitmask images only')
+        if channel:
+            mask = numpy.asarray(tile) >> (channel - 1) & 1
+            mask *= 255
+        else:
+            mask = numpy.zeros((tile.size[1], tile.size[0]), numpy.uint8)
+            mask[numpy.asarray(tile) == 0] = 255
+        if colormap is None:
+            color = None
+        else:
+            color = 'rgb' + str(tuple(colormap[int(round(channel*255/8.0))]))
+        tile = PIL.Image.new('RGBA', tile.size, color)
+        tile.putalpha(PIL.Image.fromarray(mask))
+        return tile, tileEncoding
+
     def _normalizeImage(self, tile, tileEncoding, range_, exclude=None,
                         bitmask=False):
         if tileEncoding != TILE_FORMAT_PIL:
@@ -200,7 +220,7 @@ class TiffFileTileSource(FileTileSource):
                 if bitmask and exclude and i in exclude:
                     continue
                 #array += mask & 1 << i
-                value = int(i*255/8)
+                value = int(round(i*255/8.0))
                 array[numpy.nonzero(mask & 1 << i - 1)] = value
             tile = PIL.Image.fromarray(array)
         else:
@@ -259,6 +279,20 @@ class TiffFileTileSource(FileTileSource):
 
     def _outputTile(self, tile, tileEncoding, *args, **kwargs):
         encoding = self.encoding
+
+        bitmaskChannel = kwargs.get('bitmaskChannel')
+        if bitmaskChannel is not None:
+            tile, tileEncoding = self._bitmaskChannel(tile, tileEncoding,
+                                                      bitmaskChannel,
+                                                      kwargs.get('colormap'))
+            self.encoding = 'PNG'
+            result = super(TiffFileTileSource, self)._outputTile(tile,
+                                                                 tileEncoding,
+                                                                 *args,
+                                                                 **kwargs)
+            self.encoding = encoding
+            return result
+
         bitmask = kwargs.get('bitmask', False)
         if 'normalize' in kwargs and kwargs['normalize'] or bitmask:
             min_ = kwargs.get('normalizeMin', 0)

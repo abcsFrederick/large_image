@@ -351,85 +351,97 @@ var GeojsImageViewerWidget = ImageViewerWidget.extend({
     },
 
     _setOverlayVisibility: function (index, visible) {
-        this._overlays[index].geojsLayer.visible(visible);
+        _.each(this._overlays[index].layers, (layer) => {
+            layer.visible(visible);
+        });
     },
 
     _addOverlay: function (overlay) {
         var geo = window.geo;
         var index = overlay.get('index');
-        var query = {};
-        if (overlay.get('label')) {
-            query['label'] = 1;
-            if (!overlay.get('invertLabel')) {
-                query['invertLabel'] = 0;
-            }
-            if (overlay.get('flattenLabel')) {
-                query['flattenLabel'] = 1;
-            }
-        }
-        if (overlay.get('bitmask')) {
-            query['bitmask'] = 1;
-        }
-        var threshold = overlay.get('threshold');
-        if (threshold) {
-            query['normalize'] = 1;
-            if (threshold.min != null) {
-                query['normalizeMin'] = threshold.min;
-            }
-            if (threshold.max != null) {
-                query['normalizeMax'] = threshold.max;
-            }
-        }
-        var exclude = overlay.get('exclude');
-        if (overlay.get('bitmask') && exclude && exclude.length) {
-            //query['overlayId'] = overlay.id;
-            query['exclude'] = exclude.toString();
-        }
-        var colormapId = overlay.get('colormapId');
-        if (colormapId) {
-            query['colormapId'] = colormapId;
-        }
-        var params = geo.util.pixelCoordinateParams(this.el,
-                                                    this.sizeX, this.sizeY,
-                                                    this.tileWidth, this.tileHeight);
-        params.layer.useCredentials = true;
-        //params.layer.keepLower = false;
-        params.layer.url = this._getTileUrl('{z}', '{x}', '{y}',
-                                            query, overlay.get('overlayItemId'));
 
-        params.layer.visible = overlay.get('displayed');
-        var maxZoom = this.viewer.zoomRange().max;
-        var offset = overlay.get('offset');
-        params.layer.tileOffset = (level) => {
-            var scale = Math.pow(2, level - maxZoom);
-            return {x: -offset.x*scale, y: -offset.y*scale};
-        };
-        var geojsLayer = this.viewer.createLayer('osm', params.layer)
-        geojsLayer.name('overlay');
-        geojsLayer.zIndex(this.featureLayer.zIndex());
-        geojsLayer.opacity(this._globalOverlaysOpacity * overlay.get('opacity'));
-        //this._overlays.push({
+        var queries = [];
+        if (overlay.get('bitmask')) {
+            var exclude = overlay.get('exclude');
+            var colormapId = overlay.get('colormapId');
+            var threshold = overlay.get('threshold');
+            threshold = threshold ? threshold : {min: 0, max: 8};
+
+            var i = Math.max(overlay.get('label') ? 1 : 0, threshold.min);
+            for (; i <= threshold.max; i++) {
+                if (!(exclude && exclude.includes(i))) {
+                    var query = { bitmaskChannel: i };
+                    if (colormapId) {
+                        query['colormapId'] = colormapId;
+                    }
+                    queries.push(query);
+                }
+            }
+        } else {
+            var query = {};
+            if (overlay.get('label')) {
+                query['label'] = 1;
+                if (!overlay.get('invertLabel')) {
+                    query['invertLabel'] = 0;
+                }
+                if (overlay.get('flattenLabel')) {
+                    query['flattenLabel'] = 1;
+                }
+            }
+            var threshold = overlay.get('threshold');
+            if (threshold) {
+                query['normalize'] = 1;
+                if (threshold.min != null) {
+                    query['normalizeMin'] = threshold.min;
+                }
+                if (threshold.max != null) {
+                    query['normalizeMax'] = threshold.max;
+                }
+            }
+            var colormapId = overlay.get('colormapId');
+            if (colormapId) {
+                query['colormapId'] = colormapId;
+            }
+            queries.push(query);
+        }
+
         this._overlays[index] = {
-            geojsLayer: geojsLayer,
-            overlay: overlay
+            overlay: overlay,
+            layers: []
         };
-        //});
+
+        _.each(queries, (query) => {
+            var params = geo.util.pixelCoordinateParams(this.el,
+                                                        this.sizeX, this.sizeY,
+                                                        this.tileWidth, this.tileHeight);
+            params.layer.useCredentials = true;
+            //params.layer.keepLower = false;
+            params.layer.url = this._getTileUrl('{z}', '{x}', '{y}',
+                                                query, overlay.get('overlayItemId'));
+
+            params.layer.visible = overlay.get('displayed');
+            var maxZoom = this.viewer.zoomRange().max;
+            var offset = overlay.get('offset');
+            params.layer.tileOffset = (level) => {
+                var scale = Math.pow(2, level - maxZoom);
+                return {x: -offset.x*scale, y: -offset.y*scale};
+            };
+            var geojsLayer = this.viewer.createLayer('osm', params.layer)
+            geojsLayer.name('overlay');
+            geojsLayer.zIndex(this.featureLayer.zIndex());
+            geojsLayer.opacity(this._globalOverlaysOpacity * overlay.get('opacity'));
+            this._overlays[index].layers.push(geojsLayer);
+        });
 
         this._setOverlayVisibility(index, overlay.get('displayed'));
 
         return index;
     },
 
-    /*
-    addOverlay(overlay) {
-        var index = this._addOverlay(overlay);
-        this.redrawOverlay(index);
-        return index;
-    },
-     */
-
     _removeOverlay: function(index) {
-        this.viewer.deleteLayer(this._overlays[index].geojsLayer);
+        _.each(this._overlays[index].layers, (layer) => {
+            this.viewer.deleteLayer(layer);
+        });
         delete this._overlays[index];
     },
 
@@ -453,7 +465,7 @@ var GeojsImageViewerWidget = ImageViewerWidget.extend({
     },
 
     redrawOverlay: function(index) {
-        this._overlays[index].geojsLayer.draw();
+        _.each(this._overlays[index].layers, (layer) => { layer.draw(); });
     },
 
     setOverlayVisibility: function (index, visible) {
@@ -466,7 +478,9 @@ var GeojsImageViewerWidget = ImageViewerWidget.extend({
         var newIndex = _overlay.overlay.get('index');
         this._overlays[index] = this._overlays[newIndex];
         this._overlays[newIndex] = _overlay;
-        _overlay.geojsLayer.moveUp(1);
+        _.each(_overlay.layers, (layer) => {
+            layer.moveUp(this._overlays[index].layers.length);
+        });
         this.viewer.draw();
     },
 
@@ -475,7 +489,9 @@ var GeojsImageViewerWidget = ImageViewerWidget.extend({
         var newIndex = _overlay.overlay.get('index');
         this._overlays[index] = this._overlays[newIndex];
         this._overlays[newIndex] = _overlay;
-        _overlay.geojsLayer.moveDown(1);
+        _.each(_overlay.layers, (layer) => {
+            layer.moveDown(this._overlays[index].layers.length);
+        });
         this.viewer.draw();
     },
 
@@ -574,7 +590,9 @@ var GeojsImageViewerWidget = ImageViewerWidget.extend({
         this._globalOverlaysOpacity = opacity;
         _.each(this._overlays, (_overlay) => {
             if (_overlay) {
-                _overlay.geojsLayer.opacity(opacity*_overlay.overlay.get('opacity'));
+                _.each(_overlay.layers, (layer) => {
+                    layer.opacity(opacity*_overlay.overlay.get('opacity'));
+                });
             }
         });
 
@@ -588,7 +606,9 @@ var GeojsImageViewerWidget = ImageViewerWidget.extend({
     setOverlayOpacity: function (index, opacity) {
         var _overlay = this._overlays[index];
         var opacity = _overlay.overlay.get('opacity');
-        _overlay.geojsLayer.opacity(this._globalOverlaysOpacity * opacity);
+        _.each(_overlay.layers, (layer) => {
+            layer.opacity(this._globalOverlaysOpacity * opacity);
+        });
         return this;
     },
 
