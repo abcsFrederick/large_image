@@ -350,11 +350,23 @@ var GeojsImageViewerWidget = ImageViewerWidget.extend({
         }
     },
 
-    _setOverlayVisibility: function (index, visible) {
-        var exclude = this._overlays[index].overlay.get('exclude');
+    _setOverlayVisibility: function (index, visible, exclude) {
+        if (visible === undefined || visible === null) {
+            visible = this._overlays[index].overlay.get('displayed');
+        }
+        if (exclude === undefined || exclude === null) {
+            exclude = this._overlays[index].overlay.get('exclude');
+        }
+        var updatedLayers = [];
         _.each(this._overlays[index].layers, (layer, bin) => {
-            layer.visible(_.contains(exclude, parseInt(bin)) ? false : visible);
+            bin = parseInt(bin);
+            var layerVisible = _.contains(exclude, bin) ? false : visible;
+            if (layerVisible != layer.visible()) {
+                layer.visible(layerVisible);
+                updatedLayers.push(bin);
+            }
         });
+        return updatedLayers;
     },
 
     _setOverlayLayerVisibility: function (index, layer, visible) {
@@ -469,8 +481,14 @@ var GeojsImageViewerWidget = ImageViewerWidget.extend({
         return index;
     },
 
-    redrawOverlay: function(index) {
-        _.each(this._overlays[index].layers, (layer) => { layer.draw(); });
+    redrawOverlay: function(index, layers) {
+        if (layers) {
+            _.each(layers, (layer) => {
+                this._overlays[index].layers[layer].draw();
+            });
+        } else {
+            _.each(this._overlays[index].layers, (layer) => { layer.draw(); });
+        }
     },
 
     redrawOverlayLayer: function(index, layer) {
@@ -478,8 +496,8 @@ var GeojsImageViewerWidget = ImageViewerWidget.extend({
     },
 
     setOverlayVisibility: function (index, visible) {
-        this._setOverlayVisibility(index, visible);
-        this.redrawOverlay(index);
+        var updatedLayers = this._setOverlayVisibility(index, visible);
+        this.redrawOverlay(index, updatedLayers);
     },
 
     setOverlayLayerVisibility: function (index, layer, visible) {
