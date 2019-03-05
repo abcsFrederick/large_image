@@ -351,9 +351,14 @@ var GeojsImageViewerWidget = ImageViewerWidget.extend({
     },
 
     _setOverlayVisibility: function (index, visible) {
-        _.each(this._overlays[index].layers, (layer) => {
-            layer.visible(visible);
+        var exclude = this._overlays[index].overlay.get('exclude');
+        _.each(this._overlays[index].layers, (layer, bin) => {
+            layer.visible(_.contains(exclude, parseInt(bin)) ? false : visible);
         });
+    },
+
+    _setOverlayLayerVisibility: function (index, layer, visible) {
+        this._overlays[index].layers[layer].visible(overlay.get('displayed') ? visible : false);
     },
 
     _addOverlay: function (overlay) {
@@ -362,20 +367,17 @@ var GeojsImageViewerWidget = ImageViewerWidget.extend({
 
         var queries = [];
         if (overlay.get('bitmask')) {
-            var exclude = overlay.get('exclude');
             var colormapId = overlay.get('colormapId');
             var threshold = overlay.get('threshold');
             threshold = threshold ? threshold : {min: 0, max: 8};
 
             var i = Math.max(overlay.get('label') ? 1 : 0, threshold.min);
             for (; i <= threshold.max; i++) {
-                if (!(exclude && exclude.includes(i))) {
-                    var query = { bitmaskChannel: i };
-                    if (colormapId) {
-                        query['colormapId'] = colormapId;
-                    }
-                    queries.push(query);
+                var query = { bitmaskChannel: i };
+                if (colormapId) {
+                    query['colormapId'] = colormapId;
                 }
+                queries.push(query);
             }
         } else {
             var query = {};
@@ -407,8 +409,10 @@ var GeojsImageViewerWidget = ImageViewerWidget.extend({
 
         this._overlays[index] = {
             overlay: overlay,
-            layers: []
+            layers: {}
         };
+
+        var opacities = overlay.get('opacities') || [];
 
         _.each(queries, (query) => {
             var params = geo.util.pixelCoordinateParams(this.el,
@@ -419,7 +423,7 @@ var GeojsImageViewerWidget = ImageViewerWidget.extend({
             params.layer.url = this._getTileUrl('{z}', '{x}', '{y}',
                                                 query, overlay.get('overlayItemId'));
 
-            params.layer.visible = overlay.get('displayed');
+            params.layer.visible = overlay.get('displayed') && !(overlay.get('exclude') && _.contains(overlay.get('exclude'), query.bitmaskChannel));
             var maxZoom = this.viewer.zoomRange().max;
             var offset = overlay.get('offset');
             params.layer.tileOffset = (level) => {
@@ -429,8 +433,9 @@ var GeojsImageViewerWidget = ImageViewerWidget.extend({
             var geojsLayer = this.viewer.createLayer('osm', params.layer)
             geojsLayer.name('overlay');
             geojsLayer.zIndex(this.featureLayer.zIndex());
-            geojsLayer.opacity(this._globalOverlaysOpacity * overlay.get('opacity'));
-            this._overlays[index].layers.push(geojsLayer);
+            var bin = query.bitmaskChannel ? query.bitmaskChannel : 0;
+            geojsLayer.opacity(this._globalOverlaysOpacity * overlay.get('opacity') * (opacities[bin] === undefined ? 1 : opacities[bin]));
+            this._overlays[index].layers[bin] = geojsLayer;
         });
 
         this._setOverlayVisibility(index, overlay.get('displayed'));
@@ -468,9 +473,18 @@ var GeojsImageViewerWidget = ImageViewerWidget.extend({
         _.each(this._overlays[index].layers, (layer) => { layer.draw(); });
     },
 
+    redrawOverlayLayer: function(index, layer) {
+        this._overlays[index].layer[layer].draw();
+    },
+
     setOverlayVisibility: function (index, visible) {
         this._setOverlayVisibility(index, visible);
         this.redrawOverlay(index);
+    },
+
+    setOverlayLayerVisibility: function (index, layer, visible) {
+        this._setOverlayVisibility(index, layer, visible);
+        this.redrawOverlayLayer(index, layer);
     },
 
     moveOverlayDown: function (index) {
@@ -589,11 +603,14 @@ var GeojsImageViewerWidget = ImageViewerWidget.extend({
     setGlobalOverlayOpacity: function (opacity) {
         this._globalOverlaysOpacity = opacity;
         _.each(this._overlays, (_overlay) => {
-            if (_overlay) {
-                _.each(_overlay.layers, (layer) => {
-                    layer.opacity(opacity*_overlay.overlay.get('opacity'));
-                });
+            if (!_overlay) {
+                return;
             }
+            var opacity = _overlay.overlay.get('opacity');
+            var opacities = _overlay.overlay.get('opacities') || [];
+            _.each(_overlay.layers, (layer, i) => {
+                layer.opacity(this._globalOverlaysOpacity * opacity * (opacities[i] === undefined ? 1 : opacities[i]));
+            });
         });
 
         if (this.viewer) {
@@ -603,11 +620,24 @@ var GeojsImageViewerWidget = ImageViewerWidget.extend({
         return this;
     },
 
-    setOverlayOpacity: function (index, opacity) {
+    //setOverlayOpacity: function (index, opacity) {
+    setOverlayOpacity: function (index) {
         var _overlay = this._overlays[index];
         var opacity = _overlay.overlay.get('opacity');
-        _.each(_overlay.layers, (layer) => {
-            layer.opacity(this._globalOverlaysOpacity * opacity);
+        var opacities = _overlay.overlay.get('opacities') || [];
+        _.each(_overlay.layers, (layer, i) => {
+            layer.opacity(this._globalOverlaysOpacity * opacity * (opacities[i] === undefined ? 1 : opacities[i]));
+        });
+        return this;
+    },
+
+    //setOverlayOpacities: function (index, opacities) {
+    setOverlayOpacities: function (index) {
+        var _overlay = this._overlays[index];
+        var opacity = _overlay.overlay.get('opacity');
+        var opacities = _overlay.overlay.get('opacities') || [];
+        _.each(_overlay.layers, (layer, i) => {
+            layer.opacity(this._globalOverlaysOpacity * opacity * (opacities[i] === undefined ? 1 : opacities[i]));
         });
         return this;
     },
