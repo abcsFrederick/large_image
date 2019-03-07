@@ -43,6 +43,7 @@ class Colormap(AccessControlledModel):
             'created',
             'creatorId',
             'colormap',
+            'labels',
             'created',
             'updated',
             'updatedId',
@@ -51,7 +52,8 @@ class Colormap(AccessControlledModel):
             'groups',
         ))
 
-    def createColormap(self, creator, colormap, name=None, public=None):
+    def createColormap(self, creator, colormap, name=None, labels=None,
+                       public=None):
         now = datetime.datetime.utcnow()
         doc = {
             'creatorId': creator['_id'],
@@ -62,6 +64,8 @@ class Colormap(AccessControlledModel):
         }
         if name is not None:
             doc['name'] = name
+        if labels is not None:
+            doc['labels'] = labels
         if colormap:
             doc['binary'] = Binary(colormap_to_bytes(doc['colormap']))
         else:

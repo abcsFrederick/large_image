@@ -62,12 +62,14 @@ class ColormapResource(Resource):
         .param('public', 'Whether the colormap should be publicly visible.',
                dataType='boolean', required=False, default=False)
         .jsonParam('colormap', 'A JSON-encoded colormap.', requireObject=True)
+        .jsonParam('labels', 'A JSON-encoded labels.', required=False,
+                   requireObject=True)
         .errorResponse('Write access was denied for the colormap.', 403)
     )
-    def createColormap(self, name, public, colormap):
+    def createColormap(self, name, public, colormap, labels):
         try:
             return Colormap().createColormap(
-                self.getCurrentUser(), colormap, name, public)
+                self.getCurrentUser(), colormap, name, labels, public)
         except ValidationException as exc:
             logger.exception('Failed to validate colormap')
             raise RestException(
@@ -90,11 +92,12 @@ class ColormapResource(Resource):
         colormap = params.get('colormap', {})
         if name is None:
             name = params.get('name')
+        labels = params.get('labels', {})
         if public is None:
             public = params.get('public', False)
         try:
             return Colormap().createColormap(
-                self.getCurrentUser(), colormap, name, public)
+                self.getCurrentUser(), colormap, name, labels, public)
         except ValidationException as exc:
             logger.exception('Failed to validate colormap')
             raise RestException(

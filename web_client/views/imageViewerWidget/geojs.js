@@ -527,6 +527,34 @@ var GeojsImageViewerWidget = ImageViewerWidget.extend({
         this.viewer.draw();
     },
 
+    getOverlayLayerValues: function (index, layers, x, y, width, height) {
+        if (!this._overlays || !this._overlays[index]) {
+            return $.when();
+        }
+        layers = layers || _.keys(this._overlays[index].layers);
+        x = x || 0;
+        y = y || 0;
+        width = width || 1;
+        height = height || 1;
+
+        var opts = { background: false, wait: 'idle' };
+
+        var promises = _.map(layers, (layerIndex) => {
+            var layer = this._overlays[index].layers[layerIndex];
+            return this.viewer.screenshot(layer, 'canvas', null, opts).then((canvas) => {
+                return canvas.getContext('2d').getImageData(x, y, 1, 1).data;
+            });
+        }); 
+
+        return $.when.apply($, promises).then(function () {
+            var indexedValues = [];
+            _.each(arguments, (value, i) => {
+                indexedValues[layers[i]] = value;
+            });
+            return indexedValues;
+        });
+    },
+
     /**
      * Set the image interaction mode to region drawing mode.  This
      * method takes an optional `model` argument where the region will

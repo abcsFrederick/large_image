@@ -7,8 +7,10 @@ var ColormapModel = AccessControlledModel.extend({
     save: function () {
         var colormap = this.get('colormap');
         this.set('colormap', JSON.stringify(colormap), {silent: true});
+        var labels = this.get('labels');
+        this.set('labels', JSON.stringify(colormap), {silent: true});
         var promise = AccessControlledModel.prototype.save.call(this, arguments);
-        this.set('colormap', colormap, {silent: true});
+        this.set({ colormap: colormap, labels: labels }, {silent: true});
         return promise;
     }
 });
