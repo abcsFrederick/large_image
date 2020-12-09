@@ -236,6 +236,10 @@ class AnnotationSchema(object):
                         'type': 'number',
                         'description': 'radians counterclockwise around normal',
                     },
+                    'Num_of_Cell': {
+                        'type': 'number',
+                        'description': 'number of cell in ROI',
+                    },
                     'normal': coordSchema,
                     'fillColor': colorSchema
                 },
